@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+#
+# Rebuild automatiquement le client GIFETAL PRO (afriland-invest) lorsque sa
+# source change, afin que le dossier pré-buildé `afriland-invest/client/dist`
+# (servi tel quel par Plesk) soit TOUJOURS synchronisé avec le code.
+#
+# Activé automatiquement via le script "prepare" du package.json racine
+# (git config core.hooksPath .githooks).
+
+set -e
+
+CHANGED="$(git diff --cached --name-only)"
+
+# Ne rebuild que si la source du client a été modifiée (ignore le reste du monorepo).
+if echo "$CHANGED" | grep -qE '^afriland-invest/client/(src/|public/|index\.html|package\.json|package-lock\.json|vite\.config)'; then
+  echo "[pre-commit] Source client modifiée → build GIFETAL PRO en cours…"
+
+  if [ ! -d afriland-invest/client/node_modules ]; then
+    echo "[pre-commit] Dépendances client manquantes → npm install…"
+    ( cd afriland-invest/client && npm install --no-audit --no-fund )
+  fi
+
+  ( cd afriland-invest/client && npm run build )
+
+  # Ajoute le build régénéré au commit en cours.
+  git add afriland-invest/client/dist
+  echo "[pre-commit] ✅ client/dist rebuildé et inclus dans le commit."
+fi

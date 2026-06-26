@@ -1,0 +1,1 @@
+- [AFRILAND INVEST app](afriland-invest-app.md) — standalone (non-artifact) Express+Vite app; rebuild client/ + restart workflow after client changes; Supabase-only; palette in global.css :root

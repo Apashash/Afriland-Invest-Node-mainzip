@@ -1,0 +1,14 @@
+node_modules/
+client/node_modules/
+.env
+uploads/*.jpg
+uploads/*.jpeg
+uploads/*.png
+uploads/*.gif
+uploads/*.webp
+*.log
+.DS_Store
+# Ne PAS ignorer client/dist/ — nécessaire pour Plesk (app pré-buildée)
+# Le .gitignore racine du monorepo ignore "dist" : on le ré-inclut ici.
+!client/dist/
+!client/dist/**
