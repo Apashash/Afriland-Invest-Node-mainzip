@@ -62,22 +62,24 @@ export default function Login() {
         justifyContent: 'center',
         flexDirection: 'column',
       }}>
-        {/* Logo en arrière-plan */}
+        {/* Fond orange solide */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(160deg, #FF9500 0%, #FFB347 55%, #1A1A1A 100%)',
+        }} />
+        {/* Logo filigrane — taille naturelle, pas de stretch */}
         <img
           src="/payfast-bg.png"
           alt=""
           style={{
-            position: 'absolute', inset: 0,
-            width: '100%', height: '100%',
-            objectFit: 'cover',
-            objectPosition: 'center',
+            position: 'absolute',
+            right: -20, bottom: -10,
+            height: '130%',
+            width: 'auto',
+            objectFit: 'contain',
+            opacity: 0.12,
           }}
         />
-        {/* Overlay dégradé orange pour lisibilité */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'linear-gradient(160deg, rgba(255,149,0,0.82) 0%, rgba(255,179,71,0.78) 50%, rgba(26,26,26,0.85) 100%)',
-        }} />
 
         {/* Bandeau défilant */}
         <div style={{

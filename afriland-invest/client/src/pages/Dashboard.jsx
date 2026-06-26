@@ -88,21 +88,24 @@ export default function Dashboard() {
         overflow: 'hidden',
         minHeight: 200,
       }}>
-        {/* Logo en arrière-plan */}
+        {/* Fond orange solide */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(160deg, #FF9500 0%, #FFB347 55%, #1A1A1A 100%)',
+        }} />
+        {/* Logo filigrane centré, taille naturelle, opacité */}
         <img
           src="/payfast-bg.png"
           alt=""
           style={{
-            position: 'absolute', inset: 0,
-            width: '100%', height: '100%',
-            objectFit: 'cover', objectPosition: 'center',
+            position: 'absolute',
+            right: -20, bottom: -10,
+            height: '140%',
+            width: 'auto',
+            objectFit: 'contain',
+            opacity: 0.12,
           }}
         />
-        {/* Overlay orange */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'linear-gradient(160deg, rgba(255,149,0,0.88) 0%, rgba(255,179,71,0.82) 50%, rgba(26,26,26,0.90) 100%)',
-        }} />
 
         {/* Bandeau notif défilant */}
         <div style={{
