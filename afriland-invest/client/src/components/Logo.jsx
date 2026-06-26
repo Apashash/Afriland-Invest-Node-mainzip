@@ -1,7 +1,7 @@
 import React from 'react';
 
 export default function Logo({ size = 'md', style }) {
-  const heights = { sm: 28, md: 40, lg: 56 };
+  const heights = { sm: 36, md: 52, lg: 70 };
   const h = heights[size] || heights.md;
   return (
     <img

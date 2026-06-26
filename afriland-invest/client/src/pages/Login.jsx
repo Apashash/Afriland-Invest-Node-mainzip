@@ -90,7 +90,7 @@ export default function Login() {
           }}>
             💰
           </div>
-          <img src="/payfast-logo.png" alt="PayFast" style={{ height: 44, width: 'auto', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+          <img src="/payfast-logo.png" alt="PayFast" style={{ height: 70, width: 'auto', objectFit: 'contain' }} />
           <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 8 }}>Investissez & faites fructifier votre argent</p>
         </div>
       </div>
