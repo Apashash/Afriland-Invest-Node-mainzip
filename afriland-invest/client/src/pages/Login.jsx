@@ -54,8 +54,7 @@ export default function Login() {
     <div className="container" style={{ background: '#fff', minHeight: '100vh' }}>
       {/* Hero */}
       <div style={{
-        height: 240,
-        background: 'linear-gradient(160deg, #FF9500 0%, #FFB347 50%, #1A1A1A 100%)',
+        height: 260,
         position: 'relative',
         overflow: 'hidden',
         display: 'flex',
@@ -63,35 +62,42 @@ export default function Login() {
         justifyContent: 'center',
         flexDirection: 'column',
       }}>
+        {/* Logo en arrière-plan */}
+        <img
+          src="/payfast-bg.png"
+          alt=""
+          style={{
+            position: 'absolute', inset: 0,
+            width: '100%', height: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center',
+          }}
+        />
+        {/* Overlay dégradé orange pour lisibilité */}
         <div style={{
           position: 'absolute', inset: 0,
-          background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 12px)',
+          background: 'linear-gradient(160deg, rgba(255,149,0,0.82) 0%, rgba(255,179,71,0.78) 50%, rgba(26,26,26,0.85) 100%)',
         }} />
 
         {/* Bandeau défilant */}
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0,
-          background: 'rgba(255,149,0,0.85)',
-          padding: '6px 0', overflow: 'hidden',
+          background: 'rgba(0,0,0,0.35)',
+          padding: '6px 0', overflow: 'hidden', zIndex: 3,
         }}>
           <div style={{ animation: 'ticker 18s linear infinite', whiteSpace: 'nowrap', fontSize: 12, color: '#fff', fontWeight: 500 }}>
             &nbsp;&nbsp;&nbsp;🎉 Jean C. a retiré 15 000 FCFA &nbsp;•&nbsp; Marie D. a investi dans VIP 3 &nbsp;•&nbsp; Paul O. a reçu 8 500 FCFA &nbsp;•&nbsp; Ibrahim S. a activé VIP 5 &nbsp;•&nbsp;
           </div>
         </div>
 
-        <div style={{ textAlign: 'center', position: 'relative', zIndex: 2, marginTop: 24 }}>
-          <div style={{
-            width: 64, height: 64, borderRadius: 18,
-            background: '#FF9500',
-            border: '3px solid rgba(255,255,255,0.5)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 12px',
-            fontSize: 28,
-          }}>
-            💰
-          </div>
-          <img src="/payfast-logo.png" alt="PayFast" style={{ height: 70, width: 'auto', objectFit: 'contain' }} />
-          <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 8 }}>Investissez & faites fructifier votre argent</p>
+        {/* Texte au-dessus */}
+        <div style={{ textAlign: 'center', position: 'relative', zIndex: 2, marginTop: 20 }}>
+          <p style={{ color: '#fff', fontSize: 26, fontWeight: 800, lineHeight: 1.2, textShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
+            Investissez &amp; Gagnez
+          </p>
+          <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, marginTop: 8, textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
+            Faites fructifier votre argent dès aujourd'hui
+          </p>
         </div>
       </div>
 
