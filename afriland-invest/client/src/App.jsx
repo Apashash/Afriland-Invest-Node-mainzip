@@ -36,20 +36,19 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <div className="bg-gradient" />
         <Toaster
           position="top-center"
           toastOptions={{
             style: {
-              background: 'rgba(10,25,47,0.98)',
-              color: '#f0f9ff',
-              border: '1px solid rgba(34,197,94,0.3)',
+              background: '#1A1A1A',
+              color: '#fff',
               borderRadius: '12px',
               fontSize: '14px',
               fontFamily: 'Inter, sans-serif',
+              padding: '12px 16px',
             },
-            success: { iconTheme: { primary: '#22c55e', secondary: '#fff' } },
-            error: { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
+            success: { iconTheme: { primary: '#FF9500', secondary: '#fff' } },
+            error: { iconTheme: { primary: '#FF3B30', secondary: '#fff' } },
           }}
         />
         <Routes>

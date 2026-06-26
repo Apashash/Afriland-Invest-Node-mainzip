@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import Logo from "../components/Logo";
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
@@ -12,6 +11,7 @@ export default function Referral() {
   const navigate = useNavigate();
 
   useEffect(() => { loadData(); }, []);
+
   const loadData = async () => {
     try { const res = await api.get('/referral/data'); setData(res.data); }
     catch { toast.error('Erreur de chargement'); }
@@ -23,122 +23,162 @@ export default function Referral() {
   };
 
   const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0));
-
-  const lienParrainage = data?.code_parrainage
-    ? `${window.location.origin}?p=${data.code_parrainage}`
-    : '';
+  const lien = data?.code_parrainage ? `${window.location.origin}?p=${data.code_parrainage}` : '';
 
   const NIVEAUX = [
-    { num: 1, label: 'Niveau 1', commission: `${data?.commissions?.niveau1 ?? '10'}%`, color: 'var(--green-primary)' },
-    { num: 2, label: 'Niveau 2', commission: `${data?.commissions?.niveau2 ?? '5'}%`, color: 'var(--blue-primary)' },
-    { num: 3, label: 'Niveau 3', commission: `${data?.commissions?.niveau3 ?? '2'}%`, color: '#a855f7' },
+    { num: 1, commission: data?.commissions?.niveau1 ?? '10' },
+    { num: 2, commission: data?.commissions?.niveau2 ?? '5' },
+    { num: 3, commission: data?.commissions?.niveau3 ?? '2' },
   ];
 
+  const totalPersonnes = NIVEAUX.reduce((s, n) => s + (data?.[`niveau${n.num}`]?.count || 0), 0);
+
   return (
-    <div className="container" style={{ paddingBottom: 80 }}>
-      <div className="page-header">
-        <button className="back-btn" onClick={() => navigate('/')}><i className="fas fa-arrow-left" /></button>
-        <span className="page-title">Programme de parrainage</span>
-        <Logo size="sm" style={{ marginLeft: "auto" }} />
+    <div className="container" style={{ background: '#F5F1E8', paddingBottom: 80 }}>
+
+      {/* En-tête */}
+      <div style={{
+        background: 'linear-gradient(135deg, #FF9500, #FFB347)',
+        padding: '50px 16px 30px',
+        position: 'relative',
+      }}>
+        <button onClick={() => navigate('/')} style={{
+          position: 'absolute', top: 14, left: 16,
+          width: 34, height: 34, borderRadius: 10,
+          background: 'rgba(255,255,255,0.25)', border: 'none',
+          color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <i className="fas fa-arrow-left" />
+        </button>
+        <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 800 }}>Équipe</h1>
       </div>
 
       {loading ? (
         <div style={{ padding: 40, textAlign: 'center' }}><div className="loading-spinner" /></div>
       ) : (
-        <div style={{ padding: '0 16px' }}>
-          <div className="card" style={{ background: 'linear-gradient(135deg,rgba(27,42,107,0.15),rgba(0,0,0,0.15))', marginBottom: 16 }}>
-            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>Gains de parrainage</p>
-            <p className="amount-large">{fmt(data?.gains_parrainage)} FCFA</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 14 }}>
-              {NIVEAUX.map(n => (
-                <div key={n.num} style={{ textAlign: 'center', background: '#ffffff', border: '1px solid var(--border-color)', borderRadius: 10, padding: '10px 4px' }}>
-                  <p style={{ fontSize: 18, fontWeight: 800, color: n.color }}>{data?.[`niveau${n.num}`]?.count || 0}</p>
-                  <p style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{n.label}</p>
-                  <p style={{ fontSize: 11, color: n.color, fontWeight: 600 }}>{n.commission}</p>
-                </div>
+        <div style={{ padding: '16px' }}>
+
+          {/* Lien invitation */}
+          <div style={{ background: '#fff', borderRadius: 16, padding: '16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <p style={{ fontWeight: 700, fontSize: 15, color: '#1A1A1A', marginBottom: 12 }}>Lien d'invitation</p>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: '#F7F7F7', borderRadius: 12, padding: '10px 14px', marginBottom: 12,
+            }}>
+              <p style={{ flex: 1, fontSize: 12, color: '#666', wordBreak: 'break-all' }}>
+                {lien || '—'}
+              </p>
+              <button onClick={() => copy(lien)} style={{
+                padding: '8px 16px', borderRadius: 50,
+                background: '#FF9500', border: 'none',
+                color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', flexShrink: 0,
+              }}>
+                Copier
+              </button>
+            </div>
+
+            {/* Partage réseaux sociaux */}
+            <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
+              {[
+                { icon: 'fa-whatsapp', color: '#25D366', label: 'WhatsApp', href: `https://wa.me/?text=${encodeURIComponent('Rejoignez AFRILAND INVEST: ' + lien)}` },
+                { icon: 'fa-facebook', color: '#1877F2', label: 'Facebook', href: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(lien)}` },
+                { icon: 'fa-telegram', color: '#229ED9', label: 'Telegram', href: `https://t.me/share/url?url=${encodeURIComponent(lien)}` },
+                { icon: 'fa-twitter', color: '#1DA1F2', label: 'Twitter', href: `https://twitter.com/intent/tweet?text=${encodeURIComponent('Rejoignez AFRILAND INVEST: ' + lien)}` },
+              ].map(s => (
+                <a key={s.label} href={s.href} target="_blank" rel="noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textDecoration: 'none' }}>
+                  <div style={{
+                    width: 48, height: 48, borderRadius: '50%',
+                    background: s.color,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: `0 3px 10px ${s.color}44`,
+                  }}>
+                    <i className={`fab ${s.icon}`} style={{ fontSize: 22, color: '#fff' }} />
+                  </div>
+                  <span style={{ fontSize: 11, color: '#666' }}>{s.label}</span>
+                </a>
               ))}
             </div>
           </div>
 
-          <div className="card" style={{ marginBottom: 16 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
-              <i className="fas fa-link" style={{ marginRight: 8, color: 'var(--green-primary)' }} />
-              Mon lien de parrainage
-            </p>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(0,0,0,0.04)', borderRadius: 10, padding: '10px 14px' }}>
-              <p style={{ flex: 1, fontSize: 12, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
-                {lienParrainage || '—'}
-              </p>
-              <button onClick={() => copy(lienParrainage)} style={{
-                padding: '8px 12px', borderRadius: 8, background: 'rgba(27,42,107,0.15)', border: '1px solid rgba(27,42,107,0.3)', color: 'var(--green-primary)', cursor: 'pointer', flexShrink: 0,
-              }}>
-                <i className="fas fa-copy" />
-              </button>
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              <div style={{ flex: 1, background: 'rgba(0,0,0,0.04)', borderRadius: 10, padding: '10px 14px' }}>
-                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Code parrainage</p>
-                <p style={{ fontWeight: 700, color: 'var(--green-primary)', letterSpacing: 2 }}>{data?.code_parrainage || '—'}</p>
+          {/* Stats */}
+          <div style={{ background: '#fff', borderRadius: 16, padding: '16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <p style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>Nombre de personnes</p>
+                <p style={{ fontSize: 26, fontWeight: 800, color: '#FF9500' }}>{totalPersonnes}</p>
               </div>
-              <button onClick={() => copy(data?.code_parrainage || '')} style={{
-                padding: '0 16px', borderRadius: 10, background: 'rgba(27,42,107,0.15)', border: '1px solid rgba(27,42,107,0.3)', color: 'var(--green-primary)', cursor: 'pointer',
-              }}>
-                <i className="fas fa-copy" />
-              </button>
+              <div style={{ width: 1, background: '#E8E8E8' }} />
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <p style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>Total commission</p>
+                <p style={{ fontSize: 26, fontWeight: 800, color: '#FF9500' }}>{fmt(data?.gains_parrainage)}</p>
+              </div>
             </div>
           </div>
 
-          <div style={{ background: 'rgba(0,0,0,0.08)', borderRadius: 14, padding: '14px 16px', marginBottom: 16 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--blue-primary)' }}>
-              <i className="fas fa-info-circle" style={{ marginRight: 8 }} />Commissions
-            </p>
-            {NIVEAUX.map(n => (
-              <div key={n.num} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 13 }}>
-                <span style={{ color: 'var(--text-secondary)' }}>{n.label}</span>
-                <span style={{ color: n.color, fontWeight: 600 }}>{n.commission} des investissements</span>
-              </div>
-            ))}
+          {/* Tableau commissions */}
+          <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', marginBottom: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', background: '#FF9500' }}>
+              {['Nv', 'Niveau 1', 'Niveau 2', 'Niveau 3'].map(h => (
+                <div key={h} style={{ padding: '12px 8px', textAlign: 'center', color: '#fff', fontWeight: 700, fontSize: 13 }}>{h}</div>
+              ))}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', borderTop: '1px solid #F0F0F0' }}>
+              {['1,2,3', `${NIVEAUX[0].commission}%`, `${NIVEAUX[1].commission}%`, `${NIVEAUX[2].commission}%`].map((v, i) => (
+                <div key={i} style={{ padding: '12px 8px', textAlign: 'center', color: i === 0 ? '#666' : '#FF9500', fontWeight: i === 0 ? 400 : 700, fontSize: 14 }}>{v}</div>
+              ))}
+            </div>
           </div>
 
+          {/* Niveaux filleuls */}
           {NIVEAUX.map(n => {
             const levelData = data?.[`niveau${n.num}`];
             const isOpen = openLevel === n.num;
             return (
-              <div key={n.num} className="card" style={{ marginBottom: 10, borderColor: `${n.color}30` }}>
+              <div key={n.num} style={{ background: '#fff', borderRadius: 16, marginBottom: 10, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <button onClick={() => setOpenLevel(isOpen ? 0 : n.num)} style={{
                   width: '100%', background: 'none', border: 'none', cursor: 'pointer',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  color: 'var(--text-primary)', padding: 0,
+                  padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: `${n.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <i className="fas fa-users" style={{ color: n.color, fontSize: 14 }} />
+                    <div style={{
+                      width: 40, height: 40, borderRadius: 12,
+                      background: '#FFF8F0',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <i className="fas fa-users" style={{ color: '#FF9500', fontSize: 16 }} />
                     </div>
                     <div style={{ textAlign: 'left' }}>
-                      <p style={{ fontWeight: 600 }}>{n.label} · {n.commission}</p>
-                      <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{levelData?.count || 0} filleul(s)</p>
+                      <p style={{ fontWeight: 700, fontSize: 14, color: '#1A1A1A' }}>Équipe niveau {n.num}</p>
+                      <p style={{ fontSize: 12, color: '#999' }}>{levelData?.count || 0} membre(s) • {n.commission}%</p>
                     </div>
                   </div>
-                  <i className={`fas fa-chevron-${isOpen ? 'up' : 'down'}`} style={{ color: 'var(--text-muted)' }} />
+                  <div style={{
+                    width: 30, height: 30, borderRadius: 8, background: '#FFF8F0',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#FF9500', fontSize: 12,
+                  }}>
+                    <i className={`fas fa-chevron-${isOpen ? 'up' : 'down'}`} />
+                  </div>
                 </button>
-                {isOpen && levelData?.filleuls?.length > 0 && (
-                  <div style={{ marginTop: 12, borderTop: '1px solid var(--border-color)', paddingTop: 12 }}>
-                    {levelData.filleuls.map(f => (
-                      <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
-                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: `${n.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, color: n.color, flexShrink: 0 }}>
+                {isOpen && (
+                  <div style={{ borderTop: '1px solid #F0F0F0' }}>
+                    {levelData?.filleuls?.length > 0 ? levelData.filleuls.map(f => (
+                      <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid #F8F8F8' }}>
+                        <div style={{
+                          width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                          background: '#FF9500', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 700, fontSize: 14, color: '#fff',
+                        }}>
                           {f.nom?.[0]?.toUpperCase()}
                         </div>
                         <div style={{ flex: 1 }}>
-                          <p style={{ fontWeight: 600, fontSize: 13 }}>{f.nom}</p>
-                          <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>{f.pays} • {new Date(f.date_inscription).toLocaleDateString('fr-FR')}</p>
+                          <p style={{ fontWeight: 600, fontSize: 13, color: '#1A1A1A' }}>{f.nom}</p>
+                          <p style={{ fontSize: 11, color: '#999' }}>{f.pays} • {new Date(f.date_inscription).toLocaleDateString('fr-FR')}</p>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-                {isOpen && (!levelData?.filleuls || levelData.filleuls.length === 0) && (
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-color)', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '16px 0' }}>
-                    Aucun filleul à ce niveau
+                    )) : (
+                      <p style={{ textAlign: 'center', color: '#999', fontSize: 13, padding: '16px' }}>Aucun membre à ce niveau</p>
+                    )}
                   </div>
                 )}
               </div>

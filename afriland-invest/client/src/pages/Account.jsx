@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import Logo from "../components/Logo";
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
@@ -10,10 +9,12 @@ export default function Account() {
   const [txPassword, setTxPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
+  const [showTxForm, setShowTxForm] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => { loadData(); }, []);
+
   const loadData = async () => {
     try { const res = await api.get('/user/profile'); setUserInfo(res.data); }
     catch {}
@@ -26,111 +27,168 @@ export default function Account() {
     try {
       await api.put('/user/transaction-password', { password: txPassword });
       toast.success('Mot de passe de transaction défini');
-      setTxPassword('');
+      setTxPassword(''); setShowTxForm(false);
     } catch (err) {
       toast.error(err.response?.data?.error || 'Erreur');
     } finally { setLoading(false); }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-    toast.success('Déconnecté');
-  };
+  const handleLogout = () => { logout(); navigate('/login'); };
+
+  const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0));
 
   const menuItems = [
-    { icon: 'fa-briefcase', label: 'Mes investissements', path: '/orders', color: 'var(--green-primary)' },
-    { icon: 'fa-wallet', label: 'Mon portefeuille', path: '/wallet', color: 'var(--blue-primary)' },
-    { icon: 'fa-users', label: 'Mes filleuls', path: '/referral', color: '#a855f7' },
-    { icon: 'fa-crown', label: 'Salaire VIP', path: '/salary', color: '#f59e0b' },
-    { icon: 'fa-dice', label: 'Roue de la fortune', path: '/wheel', color: '#ef4444' },
-    { icon: 'fa-question-circle', label: 'FAQ', path: '/faq', color: 'var(--blue-light)' },
+    { icon: '🔑', label: 'Mot de passe transaction', onPress: () => setShowTxForm(!showTxForm) },
+    { icon: '🔒', label: 'Mes investissements', path: '/orders' },
+    { icon: '👥', label: 'Mon équipe', path: '/referral' },
+    { icon: '👑', label: 'Salaire VIP', path: '/salary' },
+    { icon: '🎰', label: 'Roue de la fortune', path: '/wheel' },
+    { icon: '💼', label: 'Mon portefeuille', path: '/wallet' },
+    { icon: '❓', label: 'FAQ / Aide', path: '/faq' },
+    { icon: 'ℹ️', label: 'À propos', onPress: () => toast('AFRILAND INVEST v1.0') },
   ];
 
   return (
-    <div className="container" style={{ paddingBottom: 80 }}>
-      <div className="page-header">
-        <span className="page-title">Mon compte</span>
-        <Logo size="sm" style={{ marginLeft: "auto" }} />
-      </div>
+    <div className="container" style={{ background: '#F5F1E8', paddingBottom: 80 }}>
 
-      <div style={{ padding: '0 16px 16px' }}>
-        <div className="card" style={{ background: 'linear-gradient(135deg,rgba(27,42,107,0.1),rgba(0,0,0,0.1))', marginBottom: 16 }}>
-          <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-            <div style={{ width: 56, height: 56, borderRadius: 16, background: 'linear-gradient(135deg,#1B2A6B,#000000)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
-              {user?.nom?.[0]?.toUpperCase() || 'U'}
-            </div>
-            <div>
-              <p style={{ fontWeight: 700, fontSize: 17 }}>{user?.nom}</p>
-              <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>{user?.telephone}</p>
-              <p style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{userInfo?.user?.pays}</p>
-            </div>
+      {/* En-tête orange avec infos utilisateur */}
+      <div style={{
+        background: 'linear-gradient(135deg, #FF9500, #FFB347)',
+        padding: '50px 16px 80px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 2px, transparent 2px, transparent 14px)',
+        }} />
+        <div style={{ textAlign: 'center', position: 'relative', zIndex: 2 }}>
+          {/* Avatar */}
+          <div style={{
+            width: 72, height: 72, borderRadius: '50%', margin: '0 auto 12px',
+            background: 'rgba(255,255,255,0.25)',
+            border: '3px solid rgba(255,255,255,0.6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 28, fontWeight: 800, color: '#fff',
+          }}>
+            {user?.nom?.[0]?.toUpperCase() || 'U'}
           </div>
+          <p style={{ color: '#fff', fontWeight: 800, fontSize: 18 }}>{user?.nom}</p>
+          <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>{user?.telephone}</p>
           {user?.role === 'admin' && (
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(27,42,107,0.2)' }}>
-              <span className="badge badge-blue"><i className="fas fa-shield-alt" style={{ marginRight: 4 }} />Administrateur</span>
-            </div>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              marginTop: 8, padding: '4px 12px', borderRadius: 20,
+              background: 'rgba(255,255,255,0.25)', color: '#fff', fontSize: 12, fontWeight: 600,
+            }}>
+              <i className="fas fa-shield-alt" style={{ fontSize: 10 }} /> Administrateur
+            </span>
           )}
         </div>
+      </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
-          <div className="card" style={{ textAlign: 'center', padding: '14px 10px' }}>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Solde</p>
-            <p style={{ fontWeight: 700, fontSize: 16, color: 'var(--green-primary)' }}>{new Intl.NumberFormat('fr-FR').format(Math.round(userInfo?.solde || 0))}</p>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>FCFA</p>
-          </div>
-          <div className="card" style={{ textAlign: 'center', padding: '14px 10px' }}>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Code parrain</p>
-            <p style={{ fontWeight: 700, fontSize: 16, color: 'var(--blue-primary)', letterSpacing: 1 }}>{userInfo?.user?.code_parrainage || '—'}</p>
-            <button onClick={() => navigator.clipboard.writeText(userInfo?.user?.code_parrainage || '').then(() => toast.success('Copié!'))}
-              style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
-              <i className="fas fa-copy" /> Copier
-            </button>
-          </div>
-        </div>
-
-        <div className="card" style={{ marginBottom: 16 }}>
-          <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>
-            <i className="fas fa-lock" style={{ marginRight: 8, color: 'var(--blue-primary)' }} />
-            Mot de passe de transaction
-          </p>
-          <form onSubmit={handleTxPassword}>
-            <div className="input-group">
-              <label>Définir / modifier (4 chiffres)</label>
-              <input type="password" placeholder="••••" maxLength={4} value={txPassword}
-                onChange={e => setTxPassword(e.target.value)} style={{ textAlign: 'center', letterSpacing: 8, fontSize: 20 }} />
+      {/* Carte solde flottante */}
+      <div style={{ margin: '-50px 16px 16px', position: 'relative', zIndex: 10 }}>
+        <div style={{
+          background: '#fff', borderRadius: 20, padding: '16px 20px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
+        }}>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+            <div style={{ flex: 1, textAlign: 'center', background: '#FFF8F0', borderRadius: 12, padding: '10px' }}>
+              <p style={{ fontSize: 11, color: '#999', marginBottom: 3 }}>Dépôts totaux</p>
+              <p style={{ fontWeight: 700, fontSize: 15, color: '#FF9500' }}>
+                {fmt(userInfo?.stats?.total_depots || 0)} FCFA
+              </p>
             </div>
-            <button type="submit" className="btn btn-blue" disabled={loading} style={{ padding: '12px' }}>
-              {loading ? <span className="loading-spinner" style={{ width: 18, height: 18, borderWidth: 2 }} /> : 'Enregistrer'}
-            </button>
-          </form>
-        </div>
-
-        <div style={{ marginBottom: 16 }}>
-          {menuItems.map(item => (
-            <button key={item.path} onClick={() => navigate(item.path)} style={{
-              width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border-color)',
-              borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12,
-              color: 'var(--text-primary)', cursor: 'pointer', marginBottom: 8, transition: 'var(--transition)',
+            <div style={{ flex: 1, textAlign: 'center', background: '#F0F8FF', borderRadius: 12, padding: '10px' }}>
+              <p style={{ fontSize: 11, color: '#999', marginBottom: 3 }}>Retraits totaux</p>
+              <p style={{ fontWeight: 700, fontSize: 15, color: '#4A90E2' }}>
+                {fmt(userInfo?.stats?.total_retraits || 0)} FCFA
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={() => navigate('/deposit')} style={{
+              flex: 1, padding: '12px', borderRadius: 50,
+              background: '#FF9500', border: 'none', color: '#fff',
+              fontWeight: 700, fontSize: 14, cursor: 'pointer',
             }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: `${item.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <i className={`fas ${item.icon}`} style={{ color: item.color, fontSize: 15 }} />
-              </div>
-              <span style={{ fontWeight: 500, flex: 1, textAlign: 'left' }}>{item.label}</span>
-              <i className="fas fa-chevron-right" style={{ color: 'var(--text-muted)', fontSize: 12 }} />
+              Recharger
             </button>
+            <button onClick={() => navigate('/withdrawal')} style={{
+              flex: 1, padding: '12px', borderRadius: 50,
+              background: '#1A1A1A', border: 'none', color: '#fff',
+              fontWeight: 700, fontSize: 14, cursor: 'pointer',
+            }}>
+              Retirer
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Menu services */}
+      <div style={{ margin: '0 16px 12px' }}>
+        <p style={{ fontWeight: 700, fontSize: 15, color: '#1A1A1A', marginBottom: 10 }}>Services</p>
+        <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+          {menuItems.map((item, idx) => (
+            <React.Fragment key={idx}>
+              <button
+                onClick={item.path ? () => navigate(item.path) : item.onPress}
+                style={{
+                  width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+                  padding: '15px 16px', display: 'flex', alignItems: 'center', gap: 12,
+                  textAlign: 'left',
+                }}
+              >
+                <span style={{ fontSize: 20, width: 28, textAlign: 'center' }}>{item.icon}</span>
+                <span style={{ flex: 1, fontWeight: 500, fontSize: 14, color: '#1A1A1A' }}>{item.label}</span>
+                <i className="fas fa-chevron-right" style={{ color: '#CCC', fontSize: 12 }} />
+              </button>
+              {/* Form mot de passe transaction */}
+              {item.label === 'Mot de passe transaction' && showTxForm && (
+                <div style={{ padding: '0 16px 16px', borderBottom: idx < menuItems.length - 1 ? '1px solid #F0F0F0' : 'none' }}>
+                  <form onSubmit={handleTxPassword}>
+                    <input
+                      type="password" placeholder="4 chiffres" maxLength={4} value={txPassword}
+                      onChange={e => setTxPassword(e.target.value)}
+                      style={{
+                        width: '100%', background: '#F7F7F7', border: '1.5px solid #E8E8E8',
+                        borderRadius: 12, padding: '12px', textAlign: 'center',
+                        letterSpacing: 10, fontSize: 20, marginBottom: 10,
+                      }}
+                    />
+                    <button type="submit" className="btn btn-primary" disabled={loading} style={{ borderRadius: 12 }}>
+                      {loading ? <span className="loading-spinner" style={{ width: 18, height: 18, borderWidth: 2 }} /> : 'Enregistrer'}
+                    </button>
+                  </form>
+                </div>
+              )}
+              {idx < menuItems.length - 1 && <div style={{ height: 1, background: '#F5F5F5', margin: '0 16px' }} />}
+            </React.Fragment>
           ))}
         </div>
+      </div>
 
-        {user?.role === 'admin' && (
-          <button onClick={() => navigate('/admin')} className="btn btn-blue" style={{ marginBottom: 12 }}>
+      {/* Admin */}
+      {user?.role === 'admin' && (
+        <div style={{ margin: '0 16px 12px' }}>
+          <button onClick={() => navigate('/admin')} style={{
+            width: '100%', padding: '14px', borderRadius: 16,
+            background: '#1A1A1A', border: 'none', color: '#FF9500',
+            fontWeight: 700, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}>
             <i className="fas fa-shield-alt" /> Panneau d'administration
           </button>
-        )}
+        </div>
+      )}
 
+      {/* Déconnexion */}
+      <div style={{ margin: '0 16px 16px' }}>
         <button onClick={handleLogout} style={{
-          width: '100%', padding: '14px', borderRadius: 12, border: '1px solid rgba(239,68,68,0.3)',
-          background: 'rgba(239,68,68,0.08)', color: 'var(--error)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          width: '100%', padding: '14px', borderRadius: 16,
+          background: '#fff', border: '1.5px solid #FFE0E0',
+          color: '#FF3B30', fontWeight: 600, fontSize: 14, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
         }}>
           <i className="fas fa-sign-out-alt" /> Se déconnecter
         </button>

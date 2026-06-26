@@ -1,14 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import Logo from "../components/Logo";
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
 import BottomNav from '../components/BottomNav';
 
-const NUMERO_DEPOT = {
-  Cameroun: { MTN: '+237 674 000 000', Orange: '+237 655 000 000' },
-  default: 'Contactez le support',
-};
+const MONTANTS_RAPIDES = [1000, 3000, 8000, 15000, 30000, 60000, 80000, 120000, 160000];
 
 export default function Deposit() {
   const [operators, setOperators] = useState({});
@@ -17,18 +13,21 @@ export default function Deposit() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [tab, setTab] = useState('form');
+  const [solde, setSolde] = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
-      const [opRes, histRes] = await Promise.all([
+      const [opRes, histRes, userRes] = await Promise.all([
         api.get('/deposit/operators'),
         api.get('/deposit/list'),
+        api.get('/user/profile'),
       ]);
       setOperators(opRes.data.pays_operateurs);
       setHistory(histRes.data.depots);
+      setSolde(userRes.data.solde || 0);
       const firstPays = Object.keys(opRes.data.pays_operateurs)[0];
       setForm(f => ({ ...f, pays: firstPays, operateur: Object.keys(opRes.data.pays_operateurs[firstPays]?.operators || {})[0] || '' }));
     } catch { toast.error('Erreur de chargement'); }
@@ -58,25 +57,37 @@ export default function Deposit() {
 
   const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0));
   const currentOps = operators[form.pays]?.operators || {};
-  const currentOpName = currentOps[form.operateur] || '';
-
   const statusColor = { valide: 'green', en_attente: 'yellow', rejete: 'red' };
   const statusLabel = { valide: 'Validé', en_attente: 'En attente', rejete: 'Rejeté' };
 
   return (
-    <div className="container" style={{ paddingBottom: 80 }}>
-      <div className="page-header">
-        <button className="back-btn" onClick={() => navigate('/')}><i className="fas fa-arrow-left" /></button>
-        <span className="page-title">Dépôt</span>
-        <Logo size="sm" style={{ marginLeft: "auto" }} />
+    <div className="container" style={{ background: '#F5F1E8', paddingBottom: 80 }}>
+
+      {/* En-tête orange */}
+      <div style={{
+        background: 'linear-gradient(135deg, #FF9500, #FFB347)',
+        padding: '50px 16px 24px',
+        position: 'relative',
+      }}>
+        <button onClick={() => navigate('/')} style={{
+          position: 'absolute', top: 14, left: 16,
+          width: 34, height: 34, borderRadius: 10,
+          background: 'rgba(255,255,255,0.25)', border: 'none',
+          color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <i className="fas fa-arrow-left" />
+        </button>
+        <h1 style={{ color: '#fff', fontSize: 20, fontWeight: 800, textAlign: 'center' }}>Centre de Recharge</h1>
       </div>
 
-      <div style={{ display: 'flex', margin: '0 16px 20px', background: 'rgba(0,0,0,0.04)', borderRadius: 12, padding: 4 }}>
+      {/* Tabs */}
+      <div style={{ margin: '16px 16px 0', display: 'flex', background: '#fff', borderRadius: 12, padding: 4, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         {['form', 'history'].map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
             flex: 1, padding: '10px', borderRadius: 10, border: 'none', cursor: 'pointer',
-            background: tab === t ? 'linear-gradient(135deg,var(--green-primary),var(--green-dark))' : 'transparent',
-            color: tab === t ? '#fff' : 'var(--text-muted)', fontWeight: tab === t ? 600 : 400, fontSize: 14,
+            background: tab === t ? '#FF9500' : 'transparent',
+            color: tab === t ? '#fff' : '#999',
+            fontWeight: tab === t ? 700 : 400, fontSize: 14, transition: 'all 0.25s',
           }}>
             {t === 'form' ? 'Nouveau dépôt' : 'Historique'}
           </button>
@@ -84,88 +95,120 @@ export default function Deposit() {
       </div>
 
       {tab === 'form' ? (
-        <div style={{ padding: '0 16px' }}>
-          <div className="card" style={{ background: 'rgba(27,42,107,0.08)', marginBottom: 16 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--green-primary)' }}>
-              <i className="fas fa-info-circle" style={{ marginRight: 8 }} />Instructions
-            </p>
-            <ol style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.8, paddingLeft: 16 }}>
-              <li>Choisissez votre pays et opérateur</li>
-              <li>Envoyez le montant sur notre numéro</li>
-              <li>Remplissez le formulaire avec votre numéro payeur</li>
-              <li>Votre dépôt sera validé sous 24h</li>
-            </ol>
+        <div style={{ padding: '16px' }}>
+          {/* Solde */}
+          <div style={{ background: '#fff', borderRadius: 16, padding: '16px 20px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <p style={{ fontSize: 13, color: '#999', marginBottom: 4 }}>Mon solde :</p>
+            <p style={{ fontSize: 22, fontWeight: 800, color: '#FF9500' }}>{fmt(solde)} FCFA</p>
           </div>
 
-          <div className="card" style={{ marginBottom: 16 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
-              <i className="fas fa-phone" style={{ marginRight: 8, color: 'var(--blue-primary)' }} />
-              Numéros de dépôt
+          <div style={{ background: '#fff', borderRadius: 16, padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#1A1A1A', marginBottom: 12 }}>
+              Sélectionnez ou entrez le montant
             </p>
-            {Object.entries(NUMERO_DEPOT).filter(([k]) => k !== 'default').map(([pays, ops]) => (
-              <div key={pays} style={{ marginBottom: 8 }}>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>{pays}</p>
-                {Object.entries(ops).map(([op, num]) => (
-                  <div key={op} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{op}</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--green-primary)' }}>{num}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-              Autres pays: contactez notre support Telegram
-            </p>
-          </div>
 
-          <form onSubmit={handleSubmit}>
-            <div className="input-group">
-              <label>Pays</label>
-              <select value={form.pays} onChange={handlePaysChange}>
+            {/* Grille montants rapides */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
+              {MONTANTS_RAPIDES.map(m => (
+                <button key={m} onClick={() => setForm({ ...form, montant: String(m) })} style={{
+                  padding: '12px 8px', borderRadius: 12,
+                  border: form.montant === String(m) ? '2px solid #FF9500' : '1.5px solid #E8E8E8',
+                  background: form.montant === String(m) ? '#FFF8F0' : '#F7F7F7',
+                  color: form.montant === String(m) ? '#FF9500' : '#1A1A1A',
+                  fontWeight: form.montant === String(m) ? 700 : 500,
+                  fontSize: 13, cursor: 'pointer', textAlign: 'center', position: 'relative',
+                }}>
+                  {new Intl.NumberFormat('fr-FR').format(m)}
+                </button>
+              ))}
+            </div>
+
+            {/* Montant personnalisé */}
+            <div style={{ marginBottom: 14 }}>
+              <input
+                type="number" placeholder="Autre montant (FCFA)"
+                value={form.montant}
+                onChange={e => setForm({ ...form, montant: e.target.value })}
+                style={{
+                  width: '100%', background: '#F7F7F7', border: '1.5px solid #E8E8E8',
+                  borderRadius: 12, padding: '13px 14px', fontSize: 15, color: '#1A1A1A',
+                }}
+              />
+            </div>
+
+            {/* Pays */}
+            <div style={{ marginBottom: 10 }}>
+              <select value={form.pays} onChange={handlePaysChange} style={{
+                width: '100%', background: '#F7F7F7', border: '1.5px solid #E8E8E8',
+                borderRadius: 12, padding: '13px 14px', fontSize: 15, color: '#1A1A1A',
+              }}>
                 {Object.keys(operators).map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
-            <div className="input-group">
-              <label>Opérateur</label>
-              <select value={form.operateur} onChange={e => setForm({ ...form, operateur: e.target.value })}>
-                {Object.entries(currentOps).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
-              </select>
+
+            {/* Opérateur */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              {Object.entries(currentOps).map(([code, name]) => (
+                <button key={code} onClick={() => setForm({ ...form, operateur: code })} style={{
+                  flex: 1, padding: '12px 8px', borderRadius: 12, cursor: 'pointer',
+                  border: form.operateur === code ? '2px solid #FF9500' : '1.5px solid #E8E8E8',
+                  background: form.operateur === code ? '#FFF8F0' : '#F7F7F7',
+                  color: form.operateur === code ? '#FF9500' : '#666',
+                  fontWeight: form.operateur === code ? 700 : 500, fontSize: 13,
+                }}>
+                  {name}
+                </button>
+              ))}
             </div>
-            <div className="input-group">
-              <label>Montant (FCFA)</label>
-              <input type="number" placeholder="Minimum 500 FCFA" value={form.montant}
-                onChange={e => setForm({ ...form, montant: e.target.value })} min="500" />
+
+            {/* Numéro payeur */}
+            <div style={{ marginBottom: 16 }}>
+              <input
+                type="tel" placeholder="Votre numéro payeur"
+                value={form.numero_payeur}
+                onChange={e => setForm({ ...form, numero_payeur: e.target.value })}
+                style={{
+                  width: '100%', background: '#F7F7F7', border: '1.5px solid #E8E8E8',
+                  borderRadius: 12, padding: '13px 14px', fontSize: 15, color: '#1A1A1A',
+                }}
+              />
             </div>
-            <div className="input-group">
-              <label>Votre numéro payeur</label>
-              <input type="tel" placeholder="Ex: +237600000000" value={form.numero_payeur}
-                onChange={e => setForm({ ...form, numero_payeur: e.target.value })} />
-            </div>
-            <button type="submit" className="btn btn-primary" disabled={submitting}>
-              {submitting ? <span className="loading-spinner" style={{ width: 20, height: 20, borderWidth: 2 }} /> : (
-                <><i className="fas fa-paper-plane" /> Soumettre le dépôt</>
-              )}
+
+            <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
+              {submitting ? <span className="loading-spinner" style={{ width: 20, height: 20, borderWidth: 2 }} /> : 'Continuer'}
             </button>
-          </form>
+
+            {/* Instructions */}
+            <div style={{ marginTop: 16 }}>
+              <p style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>
+                <span style={{ color: '#34C759', marginRight: 4 }}>✅</span>Montant minimum: 500 FCFA
+              </p>
+              <p style={{ fontSize: 12, color: '#999' }}>
+                <span style={{ color: '#34C759', marginRight: 4 }}>✅</span>Validé sous 24h ouvrables
+              </p>
+            </div>
+          </div>
         </div>
       ) : (
-        <div style={{ padding: '0 16px' }}>
+        <div style={{ padding: '16px' }}>
           {history.length === 0 ? (
-            <div className="empty-state"><i className="fas fa-history" /><p>Aucun dépôt</p></div>
+            <div className="empty-state"><i className="fas fa-history" /><p>Aucun dépôt pour l'instant</p></div>
           ) : (
             history.map(d => (
-              <div key={d.id} className="card" style={{ marginBottom: 10, padding: '14px 16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <p style={{ fontWeight: 600, fontSize: 15 }}>{fmt(d.montant)} FCFA</p>
-                    <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{d.pays} • {d.operateur}</p>
-                    <p style={{ color: 'var(--text-muted)', fontSize: 11 }}>{new Date(d.date_depot).toLocaleDateString('fr-FR')}</p>
-                  </div>
-                  <span className={`badge badge-${statusColor[d.statut] || 'yellow'}`}>
-                    <span className={`status-dot ${statusColor[d.statut] || 'yellow'}`} />
-                    {statusLabel[d.statut] || d.statut}
-                  </span>
+              <div key={d.id} style={{
+                background: '#fff', borderRadius: 14, padding: '14px 16px', marginBottom: 10,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: 15, color: '#1A1A1A' }}>{fmt(d.montant)} FCFA</p>
+                  <p style={{ color: '#999', fontSize: 12 }}>{d.pays} • {d.operateur}</p>
+                  <p style={{ color: '#ccc', fontSize: 11 }}>{new Date(d.date_depot).toLocaleDateString('fr-FR')}</p>
                 </div>
+                <span className={`badge badge-${statusColor[d.statut] || 'yellow'}`}>
+                  <span className={`status-dot ${statusColor[d.statut] || 'yellow'}`} />
+                  {statusLabel[d.statut] || d.statut}
+                </span>
               </div>
             ))
           )}
