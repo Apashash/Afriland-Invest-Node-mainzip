@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 
 const navItems = [
   { path: '/', icon: 'fa-home', label: 'Accueil' },
+  { path: '/investment', icon: 'fa-th-large', label: 'Produits' },
   { path: '/orders', icon: 'fa-clipboard-list', label: 'Commandes' },
   { path: '/referral', icon: 'fa-users', label: 'Équipe' },
   { path: '/account', icon: 'fa-user', label: 'Mon compte' },
@@ -31,13 +32,13 @@ export default function BottomNav() {
             key={item.path}
             onClick={() => navigate(item.path)}
             style={{
-              background: 'none', border: 'none', padding: '4px 8px',
+              background: 'none', border: 'none', padding: '4px 6px',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
               cursor: 'pointer', flex: 1, transition: 'var(--transition)',
               color: active ? '#FF9500' : '#999999',
             }}
           >
-            <i className={`fas ${item.icon}`} style={{ fontSize: 20 }} />
+            <i className={`fas ${item.icon}`} style={{ fontSize: 19 }} />
             <span style={{ fontSize: 10, fontWeight: active ? 600 : 400 }}>{item.label}</span>
           </button>
         );
