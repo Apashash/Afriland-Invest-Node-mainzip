@@ -81,42 +81,41 @@ export default function Dashboard() {
   return (
     <div className="container" style={{ background: '#F5F1E8', paddingBottom: 80 }}>
 
-      {/* ─── EN-TÊTE ORANGE ─── */}
+      {/* ─── EN-TÊTE ─── */}
       <div style={{
-        background: 'linear-gradient(135deg, #FF9500 0%, #FFB347 100%)',
         padding: '50px 16px 70px',
         position: 'relative',
         overflow: 'hidden',
+        minHeight: 200,
       }}>
+        {/* Logo en arrière-plan */}
+        <img
+          src="/payfast-bg.png"
+          alt=""
+          style={{
+            position: 'absolute', inset: 0,
+            width: '100%', height: '100%',
+            objectFit: 'cover', objectPosition: 'center',
+          }}
+        />
+        {/* Overlay orange */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(160deg, rgba(255,149,0,0.88) 0%, rgba(255,179,71,0.82) 50%, rgba(26,26,26,0.90) 100%)',
+        }} />
+
         {/* Bandeau notif défilant */}
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0,
-          background: 'rgba(0,0,0,0.2)', padding: '5px 0', overflow: 'hidden',
+          background: 'rgba(0,0,0,0.3)', padding: '5px 0', overflow: 'hidden', zIndex: 3,
         }}>
           <div style={{ animation: 'ticker 20s linear infinite', whiteSpace: 'nowrap', fontSize: 12, color: '#fff' }}>
             &nbsp;&nbsp;&nbsp;{FAUX_NOTIFS[notifIdx]}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
           </div>
         </div>
 
-        {/* Motif déco */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 2px, transparent 2px, transparent 14px)',
-        }} />
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: 12,
-              background: 'rgba(255,255,255,0.25)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 20, border: '2px solid rgba(255,255,255,0.5)',
-            }}>💰</div>
-            <div>
-              <img src="/payfast-logo.png" alt="PayFast" style={{ height: 40, width: 'auto', objectFit: 'contain' }} />
-              <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>Investissez & gagnez</p>
-            </div>
-          </div>
+        {/* Barre top : icônes droite */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', position: 'relative', zIndex: 2, marginBottom: 16 }}>
           <div style={{ display: 'flex', gap: 8 }}>
             {user?.role === 'admin' && (
               <button onClick={() => navigate('/admin')} style={{
@@ -137,9 +136,13 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div style={{ marginTop: 20, position: 'relative', zIndex: 2 }}>
-          <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13 }}>Solde total</p>
-          <p style={{ color: '#fff', fontSize: 32, fontWeight: 800, lineHeight: 1.2 }}>
+        {/* Texte central */}
+        <div style={{ position: 'relative', zIndex: 2 }}>
+          <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: 600, marginBottom: 4, textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
+            Investissez &amp; Gagnez
+          </p>
+          <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, marginBottom: 12 }}>Solde total</p>
+          <p style={{ color: '#fff', fontSize: 34, fontWeight: 800, lineHeight: 1.1, textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
             {fmt(solde)} <span style={{ fontSize: 18, fontWeight: 600 }}>FCFA</span>
           </p>
         </div>
