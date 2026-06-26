@@ -80,10 +80,10 @@ export default function Referral() {
             {/* Partage réseaux sociaux */}
             <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
               {[
-                { icon: 'fa-whatsapp', color: '#25D366', label: 'WhatsApp', href: `https://wa.me/?text=${encodeURIComponent('Rejoignez AFRILAND INVEST: ' + lien)}` },
+                { icon: 'fa-whatsapp', color: '#25D366', label: 'WhatsApp', href: `https://wa.me/?text=${encodeURIComponent('Rejoignez PayFast: ' + lien)}` },
                 { icon: 'fa-facebook', color: '#1877F2', label: 'Facebook', href: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(lien)}` },
                 { icon: 'fa-telegram', color: '#229ED9', label: 'Telegram', href: `https://t.me/share/url?url=${encodeURIComponent(lien)}` },
-                { icon: 'fa-twitter', color: '#1DA1F2', label: 'Twitter', href: `https://twitter.com/intent/tweet?text=${encodeURIComponent('Rejoignez AFRILAND INVEST: ' + lien)}` },
+                { icon: 'fa-twitter', color: '#1DA1F2', label: 'Twitter', href: `https://twitter.com/intent/tweet?text=${encodeURIComponent('Rejoignez PayFast: ' + lien)}` },
               ].map(s => (
                 <a key={s.label} href={s.href} target="_blank" rel="noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textDecoration: 'none' }}>
                   <div style={{

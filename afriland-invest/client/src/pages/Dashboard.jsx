@@ -113,7 +113,7 @@ export default function Dashboard() {
               fontSize: 20, border: '2px solid rgba(255,255,255,0.5)',
             }}>💰</div>
             <div>
-              <p style={{ color: '#fff', fontWeight: 800, fontSize: 16, lineHeight: 1.2 }}>AFRILAND INVEST</p>
+              <img src="/payfast-logo.png" alt="PayFast" style={{ height: 26, width: 'auto', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
               <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>Investissez & gagnez</p>
             </div>
           </div>

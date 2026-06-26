@@ -90,8 +90,8 @@ export default function Login() {
           }}>
             💰
           </div>
-          <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 800, letterSpacing: 0.5 }}>AFRILAND INVEST</h1>
-          <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 4 }}>Investissez & faites fructifier votre argent</p>
+          <img src="/payfast-logo.png" alt="PayFast" style={{ height: 44, width: 'auto', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+          <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 8 }}>Investissez & faites fructifier votre argent</p>
         </div>
       </div>
 

@@ -45,7 +45,7 @@ export default function Account() {
     { icon: '🎰', label: 'Roue de la fortune', path: '/wheel' },
     { icon: '💼', label: 'Mon portefeuille', path: '/wallet' },
     { icon: '❓', label: 'FAQ / Aide', path: '/faq' },
-    { icon: 'ℹ️', label: 'À propos', onPress: () => toast('AFRILAND INVEST v1.0') },
+    { icon: 'ℹ️', label: 'À propos', onPress: () => toast('PayFast v1.0') },
   ];
 
   return (
