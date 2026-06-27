@@ -191,11 +191,10 @@ export default function FAQ() {
               }}
             >
               <div style={{
-                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                background: faq.color + '18',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                overflow: 'hidden',
               }}>
-                <i className={`fas ${faq.icon}`} style={{ color: faq.color, fontSize: 14 }} />
+                <img src="/payfast-bg.jpg" alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
               <span style={{ flex: 1, fontWeight: 600, fontSize: 14, color: '#1A1A1A', lineHeight: 1.4 }}>
                 {faq.q}
