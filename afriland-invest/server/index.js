@@ -49,24 +49,35 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(CLIENT_DIST, 'index.html'));
 });
 
-// ── Health check ─────────────────────────────────────────────────
+// ── Health check & diagnostic ────────────────────────────────────
 app.get('/api/health', async (req, res) => {
   const { pool } = require('./db');
-  let dbOk = false;
-  let version = 'v2.0-admin-panel';
+  const version = 'v2.0-admin-panel';
+  const tables = ['utilisateurs', 'soldes', 'vip', 'commandes', 'planinvestissement', 'depots', 'retraits'];
+  const result = { status: 'ok', version, timestamp: new Date().toISOString() };
+
+  result.database_url_set = !!process.env.DATABASE_URL;
+
   try {
     await pool.query('SELECT 1');
-    dbOk = true;
+    result.db_connection = '✅ connectée';
   } catch (e) {
-    dbOk = false;
+    result.db_connection = `❌ échec: ${e.message}`;
+    return res.json(result);
   }
-  res.json({
-    status: 'ok',
-    version,
-    db: dbOk ? '✅ connecté' : '❌ non connecté',
-    env_db: !!(process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || process.env.POSTGRES_URL || process.env.DB_URL),
-    timestamp: new Date().toISOString(),
-  });
+
+  const tableStatus = {};
+  for (const t of tables) {
+    try {
+      const r = await pool.query(`SELECT COUNT(*) FROM ${t}`);
+      tableStatus[t] = `✅ (${r.rows[0].count} lignes)`;
+    } catch (e) {
+      tableStatus[t] = `❌ manquante`;
+    }
+  }
+  result.tables = tableStatus;
+
+  res.json(result);
 });
 
 // ── Auto-deploy webhook ──────────────────────────────────────────

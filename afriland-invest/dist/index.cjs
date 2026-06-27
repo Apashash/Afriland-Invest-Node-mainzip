@@ -1590,21 +1590,28 @@ app.get("*", (req, res) => {
 });
 app.get("/api/health", async (req, res) => {
   const { pool } = require_db();
-  let dbOk = false;
-  let version = "v2.0-admin-panel";
+  const version = "v2.0-admin-panel";
+  const tables = ["utilisateurs", "soldes", "vip", "commandes", "planinvestissement", "depots", "retraits"];
+  const result = { status: "ok", version, timestamp: (/* @__PURE__ */ new Date()).toISOString() };
+  result.database_url_set = !!process.env.DATABASE_URL;
   try {
     await pool.query("SELECT 1");
-    dbOk = true;
+    result.db_connection = "\u2705 connect\xE9e";
   } catch (e) {
-    dbOk = false;
+    result.db_connection = `\u274C \xE9chec: ${e.message}`;
+    return res.json(result);
   }
-  res.json({
-    status: "ok",
-    version,
-    db: dbOk ? "\u2705 connect\xE9" : "\u274C non connect\xE9",
-    env_db: !!(process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || process.env.POSTGRES_URL || process.env.DB_URL),
-    timestamp: (/* @__PURE__ */ new Date()).toISOString()
-  });
+  const tableStatus = {};
+  for (const t of tables) {
+    try {
+      const r = await pool.query(`SELECT COUNT(*) FROM ${t}`);
+      tableStatus[t] = `\u2705 (${r.rows[0].count} lignes)`;
+    } catch (e) {
+      tableStatus[t] = `\u274C manquante`;
+    }
+  }
+  result.tables = tableStatus;
+  res.json(result);
 });
 app.get("/api/deploy", (req, res) => {
   const secret = process.env.DEPLOY_SECRET || "afriland2024";
