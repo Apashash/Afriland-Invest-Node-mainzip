@@ -88,23 +88,23 @@ export default function Dashboard() {
         overflow: 'hidden',
         minHeight: 200,
       }}>
-        {/* Fond orange solide */}
+        {/* Fond orange uniforme */}
         <div style={{
           position: 'absolute', inset: 0,
-          background: 'linear-gradient(160deg, #FF9500 0%, #FFB347 55%, #1A1A1A 100%)',
+          background: 'linear-gradient(135deg, #E07800 0%, #FF9500 100%)',
         }} />
-        {/* Logo PayFast clair et net */}
+        {/* Logo PayFast centré */}
         <img
           src="/payfast-bg.png"
           alt=""
           style={{
             position: 'absolute',
-            right: -10, bottom: -5,
-            height: '100%',
+            top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            height: '80%',
             width: 'auto',
             objectFit: 'contain',
-            opacity: 0.45,
-            imageRendering: 'auto',
+            mixBlendMode: 'multiply',
           }}
         />
 
