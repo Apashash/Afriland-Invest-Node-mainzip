@@ -95,7 +95,7 @@ export default function Dashboard() {
         }} />
         {/* Logo PayFast centré */}
         <img
-          src="/payfast-bg.png"
+          src="/payfast-bg.jpg"
           alt=""
           style={{
             position: 'absolute',
