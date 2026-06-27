@@ -17,7 +17,7 @@ const annoncesRoutes = require('./routes/annonces');
 const transactionsRoutes = require('./routes/transactions');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
@@ -52,13 +52,9 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Erreur serveur interne' });
 });
 
-const { query } = require('./db');
+const { supabase } = require('./db');
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`AFRILAND INVEST server running on port ${PORT}`);
-  try {
-    const res = await query('SELECT COUNT(*) FROM utilisateurs');
-    console.log(`✅ Base de données connectée — ${res.rows[0].count || 0} utilisateur(s) en base`);
-  } catch (err) {
-    console.log('ℹ️  Base de données connectée (tables en cours de création)');
-  }
+  const { count } = await supabase.from('utilisateurs').select('*', { count: 'exact', head: true });
+  console.log(`✅ Supabase connecté — ${count || 0} utilisateur(s) en base`);
 });

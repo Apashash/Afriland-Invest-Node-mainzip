@@ -29,7 +29,7 @@ outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd afriland-invest && PORT=3000 node server/index.js"
+args = "cd afriland-invest && node server/index.js"
 waitForPort = 3000
 
 [agent]
@@ -43,10 +43,6 @@ timeoutMs = 20000
 [[ports]]
 localPort = 3000
 externalPort = 3000
-
-[[ports]]
-localPort = 8080
-externalPort = 80
 
 [[ports]]
 localPort = 8081

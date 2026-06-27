@@ -1,5 +1,5 @@
 const express = require('express');
-const { query } = require('../db');
+const { supabase } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
@@ -27,11 +27,13 @@ router.get('/operators', authMiddleware, (req, res) => {
 
 router.get('/list', authMiddleware, async (req, res) => {
   try {
-    const res2 = await query(
-      'SELECT * FROM depots WHERE user_id=$1 ORDER BY date_depot DESC LIMIT 20',
-      [req.user.id]
-    );
-    res.json({ depots: res2.rows });
+    const { data: depots } = await supabase
+      .from('depots')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .order('date_depot', { ascending: false })
+      .limit(20);
+    res.json({ depots: depots || [] });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
@@ -53,16 +55,26 @@ router.post('/request', authMiddleware, upload.single('preuve'), async (req, res
 
     const preuve_path = req.file ? req.file.filename : null;
 
-    const res2 = await query(
-      `INSERT INTO depots (user_id, montant, pays, operateur, numero_payeur, preuve_paiement, statut)
-       VALUES ($1,$2,$3,$4,$5,$6,'en_attente') RETURNING id`,
-      [userId, montantNum, pays, operateur, numero_payeur, preuve_path]
-    );
+    const { data, error } = await supabase
+      .from('depots')
+      .insert({
+        user_id: userId,
+        montant: montantNum,
+        pays,
+        operateur,
+        numero_payeur,
+        preuve_paiement: preuve_path,
+        statut: 'en_attente',
+      })
+      .select('id')
+      .single();
+
+    if (error) throw error;
 
     res.json({
       success: true,
       message: 'Demande de dépôt soumise. En attente de validation.',
-      depot_id: res2.rows[0].id,
+      depot_id: data.id,
     });
   } catch (err) {
     console.error('Deposit error:', err);
