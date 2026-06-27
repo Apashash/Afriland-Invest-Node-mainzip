@@ -1091,6 +1091,23 @@ export default function Admin() {
                     </div>
                     <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 1 }}>{u.telephone} · {u.pays}</p>
                     <p style={{ color: 'var(--primary)', fontWeight: 700, fontSize: 13, marginTop: 1 }}>{fmt(u.solde || 0)} FCFA</p>
+                    {(u.lien_parrainage || u.code_parrainage) && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+                        <span style={{ color: '#5856D6', fontSize: 11, fontWeight: 600, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
+                          {u.code_parrainage}
+                        </span>
+                        <button
+                          onClick={() => {
+                            const ref = u.lien_parrainage || `${window.location.origin}/register?ref=${u.code_parrainage}`;
+                            navigator.clipboard.writeText(ref);
+                            toast.success('Lien de parrainage copié !');
+                          }}
+                          style={{ flexShrink: 0, background: '#5856D615', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', color: '#5856D6', fontSize: 10, fontWeight: 700 }}
+                        >
+                          <i className="fas fa-copy" style={{ marginRight: 3 }} />Copier
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={() => openActionMenu(u)}

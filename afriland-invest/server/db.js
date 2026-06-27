@@ -1,17 +1,18 @@
 const { Pool } = require('pg');
 
 function buildConnectionConfig() {
-  const url = process.env.DATABASE_URL ||
-               process.env.SUPABASE_DB_URL ||
+  const url = process.env.SUPABASE_DB_URL ||
+               process.env.DATABASE_URL ||
                process.env.POSTGRES_URL ||
                process.env.DB_URL ||
                process.env.POSTGRESQL_URL;
 
   if (url) {
-    const isReplit = process.env.PGHOST && process.env.PGHOST.includes('replit');
     const isLocalhost = url.includes('localhost') || url.includes('127.0.0.1');
-    const ssl = (isLocalhost || isReplit) ? false : { rejectUnauthorized: false };
-    console.log(`🔗 DB source : DATABASE_URL`);
+    const isReplitLocal = url.includes('pg.replit') || url.includes('neon.tech') || (!url.includes('supabase') && process.env.PGHOST);
+    const ssl = (isLocalhost || isReplitLocal) ? false : { rejectUnauthorized: false };
+    const source = process.env.SUPABASE_DB_URL ? 'SUPABASE_DB_URL' : 'DATABASE_URL';
+    console.log(`🔗 DB source : ${source}`);
     return { connectionString: url, ssl };
   }
 
