@@ -4,17 +4,16 @@ import toast from 'react-hot-toast';
 import api from '../lib/api';
 import BottomNav from '../components/BottomNav';
 
-const PLAN_EMOJIS = ['🚚', '📦', '✈️', '🏆', '💎', '👑', '🌟', '🚀', '💰', '🏦'];
-
 export default function Investment() {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState(null);
   const [modal, setModal] = useState(null);
   const [txPassword, setTxPassword] = useState('');
+  const [hasPassword, setHasPassword] = useState(null);
   const navigate = useNavigate();
 
-  useEffect(() => { loadPlans(); }, []);
+  useEffect(() => { loadPlans(); loadPasswordStatus(); }, []);
 
   const loadPlans = async () => {
     try {
@@ -22,6 +21,18 @@ export default function Investment() {
       setPlans(res.data.plans);
     } catch { toast.error('Erreur de chargement'); }
     finally { setLoading(false); }
+  };
+
+  const loadPasswordStatus = async () => {
+    try {
+      const res = await api.get('/user/has-transaction-password');
+      setHasPassword(res.data.has_password);
+    } catch {}
+  };
+
+  const openModal = (plan) => {
+    setTxPassword('');
+    setModal(plan);
   };
 
   const handleBuy = async () => {
@@ -41,8 +52,49 @@ export default function Investment() {
   return (
     <div className="container" style={{ background: '#F5F1E8', paddingBottom: 80 }}>
 
-      {/* Modal achat */}
-      {modal && (
+      {/* Modal — pas de mot de passe configuré */}
+      {modal && hasPassword === false && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 24, padding: 28, width: '100%', maxWidth: 380, textAlign: 'center' }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%', margin: '0 auto 16px',
+              background: '#FFF3E0', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <i className="fas fa-lock" style={{ fontSize: 28, color: '#FF9500' }} />
+            </div>
+            <h3 style={{ fontWeight: 800, fontSize: 17, color: '#1A1A1A', marginBottom: 10 }}>
+              Mot de passe requis
+            </h3>
+            <p style={{ fontSize: 14, color: '#666', lineHeight: 1.5, marginBottom: 24 }}>
+              Vous devez d'abord configurer votre mot de passe de transaction avant de pouvoir investir.
+            </p>
+            <button
+              onClick={() => { setModal(null); navigate('/account'); }}
+              style={{
+                width: '100%', padding: '14px', borderRadius: 50,
+                background: '#FF9500', border: 'none', color: '#fff',
+                fontWeight: 700, fontSize: 15, cursor: 'pointer', marginBottom: 10,
+              }}
+            >
+              <i className="fas fa-cog" style={{ marginRight: 8 }} />
+              Configurer maintenant
+            </button>
+            <button
+              onClick={() => setModal(null)}
+              style={{
+                width: '100%', padding: '12px', borderRadius: 50,
+                background: 'none', border: '1.5px solid #E0E0E0', color: '#999',
+                fontWeight: 600, fontSize: 14, cursor: 'pointer',
+              }}
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal achat normal */}
+      {modal && hasPassword === true && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div style={{ background: '#fff', borderRadius: '24px 24px 0 0', padding: 24, width: '100%', maxWidth: 430 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -67,23 +119,19 @@ export default function Investment() {
             <div style={{ marginBottom: 16 }}>
               <p style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>Mot de passe de transaction (4 chiffres)</p>
               <input
-                type="password" placeholder="••••" maxLength={4} value={txPassword}
+                type="password" inputMode="numeric" placeholder="••••" maxLength={4} value={txPassword}
                 onChange={e => setTxPassword(e.target.value)}
                 style={{
                   width: '100%', background: '#F7F7F7', border: '1.5px solid #E8E8E8',
                   borderRadius: 12, padding: '14px', textAlign: 'center',
                   letterSpacing: 12, fontSize: 22, color: '#1A1A1A',
+                  boxSizing: 'border-box',
                 }}
               />
             </div>
 
-            <p style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>
-              <i className="fas fa-info-circle" style={{ color: '#FF9500', marginRight: 6 }} />
-              Configurez votre mot de passe dans Mon compte si ce n'est pas encore fait.
-            </p>
-
             <button className="btn btn-primary" onClick={handleBuy} disabled={!!buying}>
-              {buying ? <span className="loading-spinner" style={{ width: 20, height: 20, borderWidth: 2 }} /> : 'Confirmer l\'investissement'}
+              {buying ? <span className="loading-spinner" style={{ width: 20, height: 20, borderWidth: 2 }} /> : "Confirmer l'investissement"}
             </button>
           </div>
         </div>
@@ -116,7 +164,6 @@ export default function Investment() {
             boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
             display: 'flex', alignItems: 'center', gap: 12,
           }}>
-            {/* Image VIP */}
             <div style={{
               width: 72, height: 72, borderRadius: 14, flexShrink: 0,
               background: 'linear-gradient(135deg, #FF9500, #FFB347)',
@@ -126,7 +173,6 @@ export default function Investment() {
               <img src="/vip-icon.png" alt="VIP" style={{ width: '85%', height: '85%', objectFit: 'contain', mixBlendMode: 'multiply' }} />
             </div>
 
-            {/* Infos */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontWeight: 700, fontSize: 15, color: '#1A1A1A', marginBottom: 3 }}>{plan.nom}</p>
               <p style={{ color: '#666', fontSize: 12 }}>Durée: {plan.duree_jours} jours</p>
@@ -134,11 +180,10 @@ export default function Investment() {
               <p style={{ color: '#666', fontSize: 12 }}>Profit total: <span style={{ color: '#34C759', fontWeight: 600 }}>{fmt(plan.revenu_total)} FCFA</span></p>
             </div>
 
-            {/* Prix + bouton */}
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
               <p style={{ fontWeight: 800, fontSize: 16, color: '#1A1A1A', marginBottom: 8 }}>{fmt(plan.prix)}</p>
               <p style={{ fontSize: 11, color: '#999', marginBottom: 8 }}>FCFA</p>
-              <button onClick={() => setModal(plan)} style={{
+              <button onClick={() => openModal(plan)} style={{
                 padding: '8px 16px', borderRadius: 50,
                 background: '#FF9500', border: 'none',
                 color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',

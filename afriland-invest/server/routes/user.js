@@ -84,16 +84,46 @@ router.get('/profile', authMiddleware, async (req, res) => {
   }
 });
 
+router.get('/has-transaction-password', authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await query('SELECT id FROM transaction_passwords WHERE user_id = $1', [req.user.id]);
+    res.json({ has_password: rows.length > 0 });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 router.put('/transaction-password', authMiddleware, async (req, res) => {
   try {
-    const { password } = req.body;
-    if (!password || !/^\d{4}$/.test(password)) {
-      return res.status(400).json({ error: 'Le mot de passe doit être composé de 4 chiffres' });
+    const { password, old_password, new_password, confirm_password } = req.body;
+
+    const existing = await query('SELECT password FROM transaction_passwords WHERE user_id = $1', [req.user.id]);
+    const hasPassword = existing.rows.length > 0;
+
+    if (hasPassword) {
+      if (!old_password || !new_password || !confirm_password) {
+        return res.status(400).json({ error: 'Tous les champs sont obligatoires' });
+      }
+      if (!/^\d{4}$/.test(new_password)) {
+        return res.status(400).json({ error: 'Le nouveau mot de passe doit être composé de 4 chiffres' });
+      }
+      if (new_password !== confirm_password) {
+        return res.status(400).json({ error: 'Les nouveaux mots de passe ne correspondent pas' });
+      }
+      if (existing.rows[0].password !== old_password) {
+        return res.status(400).json({ error: 'Ancien mot de passe incorrect' });
+      }
+      await query('UPDATE transaction_passwords SET password = $1 WHERE user_id = $2', [new_password, req.user.id]);
+    } else {
+      if (!password || !/^\d{4}$/.test(password)) {
+        return res.status(400).json({ error: 'Le mot de passe doit être composé de 4 chiffres' });
+      }
+      await query(
+        'INSERT INTO transaction_passwords (user_id, password) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET password = $2',
+        [req.user.id, password]
+      );
     }
-    await query(
-      'INSERT INTO transaction_passwords (user_id, password) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET password = $2',
-      [req.user.id, password]
-    );
+
     res.json({ success: true, message: 'Mot de passe de transaction mis à jour' });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });

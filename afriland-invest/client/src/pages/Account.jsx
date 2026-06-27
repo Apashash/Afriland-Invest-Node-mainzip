@@ -6,36 +6,69 @@ import { useAuth } from '../hooks/useAuth.jsx';
 import BottomNav from '../components/BottomNav';
 
 export default function Account() {
-  const [txPassword, setTxPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
   const [showTxForm, setShowTxForm] = useState(false);
+  const [hasPassword, setHasPassword] = useState(false);
+
+  const [newPass, setNewPass] = useState('');
+  const [oldPass, setOldPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    try { const res = await api.get('/user/profile'); setUserInfo(res.data); }
-    catch {}
+    try {
+      const [profileRes, pwRes] = await Promise.all([
+        api.get('/user/profile'),
+        api.get('/user/has-transaction-password'),
+      ]);
+      setUserInfo(profileRes.data);
+      setHasPassword(pwRes.data.has_password);
+    } catch {}
+  };
+
+  const resetForm = () => {
+    setOldPass(''); setNewPass(''); setConfirmPass('');
+    setShowTxForm(false);
   };
 
   const handleTxPassword = async (e) => {
     e.preventDefault();
-    if (!/^\d{4}$/.test(txPassword)) return toast.error('4 chiffres requis');
     setLoading(true);
     try {
-      await api.put('/user/transaction-password', { password: txPassword });
-      toast.success('Mot de passe de transaction défini');
-      setTxPassword(''); setShowTxForm(false);
+      if (hasPassword) {
+        await api.put('/user/transaction-password', {
+          old_password: oldPass,
+          new_password: newPass,
+          confirm_password: confirmPass,
+        });
+      } else {
+        await api.put('/user/transaction-password', { password: newPass });
+      }
+      toast.success(hasPassword ? 'Mot de passe modifié avec succès' : 'Mot de passe créé avec succès');
+      setHasPassword(true);
+      resetForm();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Erreur');
     } finally { setLoading(false); }
   };
 
   const handleLogout = () => { logout(); navigate('/login'); };
-
   const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0));
+
+  const inputStyle = {
+    width: '100%', background: '#F7F7F7', border: '1.5px solid #E8E8E8',
+    borderRadius: 12, padding: '12px 14px', fontSize: 14, color: '#1A1A1A',
+    boxSizing: 'border-box', marginBottom: 10,
+  };
+  const pinStyle = {
+    ...inputStyle, textAlign: 'center', letterSpacing: 10, fontSize: 20,
+  };
+  const labelStyle = { fontSize: 12, color: '#888', marginBottom: 4, display: 'block' };
 
   const menuItems = [
     { fa: 'fa-key',          bg: '#FFF3E0', color: '#FF9500', label: 'Mot de passe transaction', onPress: () => setShowTxForm(!showTxForm) },
@@ -72,7 +105,6 @@ export default function Account() {
           }}
         />
         <div style={{ textAlign: 'center', position: 'relative', zIndex: 2 }}>
-          {/* Avatar */}
           <div style={{
             width: 72, height: 72, borderRadius: '50%', margin: '0 auto 12px',
             background: 'rgba(255,255,255,0.25)',
@@ -156,27 +188,73 @@ export default function Account() {
                   <i className={`fas ${item.fa}`} style={{ fontSize: 16, color: item.color }} />
                 </div>
                 <span style={{ flex: 1, fontWeight: 500, fontSize: 14, color: '#1A1A1A' }}>{item.label}</span>
-                <i className="fas fa-chevron-right" style={{ color: '#CCC', fontSize: 12 }} />
+                <i className={`fas ${showTxForm && item.label === 'Mot de passe transaction' ? 'fa-chevron-down' : 'fa-chevron-right'}`} style={{ color: '#CCC', fontSize: 12 }} />
               </button>
-              {/* Form mot de passe transaction */}
+
+              {/* Formulaire mot de passe transaction */}
               {item.label === 'Mot de passe transaction' && showTxForm && (
-                <div style={{ padding: '0 16px 16px', borderBottom: idx < menuItems.length - 1 ? '1px solid #F0F0F0' : 'none' }}>
-                  <form onSubmit={handleTxPassword}>
-                    <input
-                      type="password" placeholder="4 chiffres" maxLength={4} value={txPassword}
-                      onChange={e => setTxPassword(e.target.value)}
-                      style={{
-                        width: '100%', background: '#F7F7F7', border: '1.5px solid #E8E8E8',
-                        borderRadius: 12, padding: '12px', textAlign: 'center',
-                        letterSpacing: 10, fontSize: 20, marginBottom: 10,
-                      }}
-                    />
-                    <button type="submit" className="btn btn-primary" disabled={loading} style={{ borderRadius: 12 }}>
-                      {loading ? <span className="loading-spinner" style={{ width: 18, height: 18, borderWidth: 2 }} /> : 'Enregistrer'}
-                    </button>
-                  </form>
+                <div style={{ padding: '4px 16px 16px', background: '#FAFAFA' }}>
+                  {!hasPassword ? (
+                    /* ── Créer un mot de passe ── */
+                    <form onSubmit={handleTxPassword}>
+                      <p style={{ fontSize: 13, color: '#FF9500', fontWeight: 600, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <i className="fas fa-plus-circle" /> Créer votre mot de passe de transaction
+                      </p>
+                      <label style={labelStyle}>Mot de passe (4 chiffres)</label>
+                      <input
+                        type="password" inputMode="numeric" placeholder="••••" maxLength={4}
+                        value={newPass} onChange={e => setNewPass(e.target.value)}
+                        style={pinStyle}
+                      />
+                      <button type="submit" className="btn btn-primary" disabled={loading} style={{ borderRadius: 12, marginTop: 4 }}>
+                        {loading ? <span className="loading-spinner" style={{ width: 18, height: 18, borderWidth: 2 }} /> : 'Enregistrer'}
+                      </button>
+                    </form>
+                  ) : (
+                    /* ── Modifier le mot de passe ── */
+                    <form onSubmit={handleTxPassword}>
+                      <p style={{ fontSize: 13, color: '#4A90E2', fontWeight: 600, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <i className="fas fa-lock" /> Modifier votre mot de passe
+                      </p>
+                      <label style={labelStyle}>Ancien mot de passe</label>
+                      <input
+                        type="password" inputMode="numeric" placeholder="••••" maxLength={4}
+                        value={oldPass} onChange={e => setOldPass(e.target.value)}
+                        style={pinStyle}
+                      />
+                      <label style={labelStyle}>Nouveau mot de passe</label>
+                      <input
+                        type="password" inputMode="numeric" placeholder="••••" maxLength={4}
+                        value={newPass} onChange={e => setNewPass(e.target.value)}
+                        style={pinStyle}
+                      />
+                      <label style={labelStyle}>Confirmer le nouveau mot de passe</label>
+                      <input
+                        type="password" inputMode="numeric" placeholder="••••" maxLength={4}
+                        value={confirmPass} onChange={e => setConfirmPass(e.target.value)}
+                        style={pinStyle}
+                      />
+                      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                        <button type="button" onClick={resetForm} style={{
+                          flex: 1, padding: '12px', borderRadius: 12,
+                          background: '#F0F0F0', border: 'none', color: '#666',
+                          fontWeight: 600, fontSize: 14, cursor: 'pointer',
+                        }}>
+                          Annuler
+                        </button>
+                        <button type="submit" disabled={loading} style={{
+                          flex: 2, padding: '12px', borderRadius: 12,
+                          background: '#FF9500', border: 'none', color: '#fff',
+                          fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                        }}>
+                          {loading ? <span className="loading-spinner" style={{ width: 18, height: 18, borderWidth: 2 }} /> : 'Modifier'}
+                        </button>
+                      </div>
+                    </form>
+                  )}
                 </div>
               )}
+
               {idx < menuItems.length - 1 && <div style={{ height: 1, background: '#F5F5F5', margin: '0 16px' }} />}
             </React.Fragment>
           ))}
