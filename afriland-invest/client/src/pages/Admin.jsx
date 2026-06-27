@@ -3,9 +3,83 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
 
+const PAGE_SIZE = 10;
+
+function Pagination({ total, page, setPage }) {
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  if (totalPages <= 1) return null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 20, paddingBottom: 8 }}>
+      <button
+        onClick={() => setPage(p => Math.max(1, p - 1))}
+        disabled={page === 1}
+        style={{ width: 36, height: 36, borderRadius: 50, border: '1px solid var(--border-color)', background: page === 1 ? 'transparent' : '#fff', color: page === 1 ? 'var(--text-muted)' : 'var(--text-dark)', cursor: page === 1 ? 'default' : 'pointer', fontWeight: 700, fontSize: 16 }}
+      >‹</button>
+      {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+        <button key={p} onClick={() => setPage(p)} style={{
+          width: 36, height: 36, borderRadius: 50, border: 'none',
+          background: p === page ? 'var(--primary)' : '#fff',
+          color: p === page ? '#fff' : 'var(--text-dark)',
+          fontWeight: 700, fontSize: 13, cursor: 'pointer',
+          boxShadow: p === page ? 'var(--shadow-orange)' : '0 1px 4px rgba(0,0,0,0.08)',
+        }}>{p}</button>
+      ))}
+      <button
+        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+        disabled={page === totalPages}
+        style={{ width: 36, height: 36, borderRadius: 50, border: '1px solid var(--border-color)', background: page === totalPages ? 'transparent' : '#fff', color: page === totalPages ? 'var(--text-muted)' : 'var(--text-dark)', cursor: page === totalPages ? 'default' : 'pointer', fontWeight: 700, fontSize: 16 }}
+      >›</button>
+    </div>
+  );
+}
+
+const statusColor = { valide: '#34C759', en_attente: '#FF9500', rejete: '#FF3B30' };
+const statusLabel = { valide: 'Validé', en_attente: 'En attente', rejete: 'Rejeté' };
+
+function StatusBadge({ statut }) {
+  const color = statusColor[statut] || '#999';
+  return (
+    <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, fontWeight: 700, background: color + '20', color, border: `1px solid ${color}40` }}>
+      {statusLabel[statut] || statut}
+    </span>
+  );
+}
+
+function ActionBtns({ onValidate, onReject }) {
+  return (
+    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+      <button onClick={onValidate} style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: '#34C75915', color: '#34C759', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+        <i className="fas fa-check" style={{ marginRight: 6 }} />Valider
+      </button>
+      <button onClick={onReject} style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: '#FF3B3015', color: '#FF3B30', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+        <i className="fas fa-times" style={{ marginRight: 6 }} />Rejeter
+      </button>
+    </div>
+  );
+}
+
+function SectionHeader({ icon, title, badge, action }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 38, height: 38, borderRadius: 10, background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <i className={`fas ${icon}`} style={{ color: '#fff', fontSize: 16 }} />
+        </div>
+        <div>
+          <h2 style={{ fontWeight: 800, fontSize: 17, color: 'var(--text-dark)' }}>{title}</h2>
+          {badge > 0 && <p style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 600 }}>{badge} en attente</p>}
+        </div>
+      </div>
+      {action}
+    </div>
+  );
+}
+
 export default function Admin() {
   const [stats, setStats] = useState(null);
-  const [tab, setTab] = useState('depots');
+  const [tab, setTab] = useState('home');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   const [depots, setDepots] = useState([]);
   const [retraits, setRetraits] = useState([]);
   const [cadeaux, setCadeaux] = useState([]);
@@ -15,21 +89,23 @@ export default function Admin() {
   const [annonces, setAnnonces] = useState([]);
   const [settings, setSettings] = useState({ min_depot: '500' });
   const [transactions, setTransactions] = useState([]);
+
+  const [loading, setLoading] = useState(true);
   const [txTypeFilter, setTxTypeFilter] = useState('all');
   const [txStatutFilter, setTxStatutFilter] = useState('all');
-  const [loading, setLoading] = useState(true);
 
-  // Modals
   const [creditModal, setCreditModal] = useState(null);
   const [creditAmount, setCreditAmount] = useState('');
   const [planModal, setPlanModal] = useState(null);
   const [planForm, setPlanForm] = useState({ nom: '', prix: '', duree_jours: '', rendement_journalier: '' });
 
-  // Upload d'image pour annonces
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef();
+
+  const [pages, setPages] = useState({ depots: 1, retraits: 1, cadeaux: 1, users: 1, posts: 1, plans: 1, annonces: 1, transactions: 1 });
+  const setPage = (key, val) => setPages(p => ({ ...p, [key]: typeof val === 'function' ? val(p[key]) : val }));
 
   const navigate = useNavigate();
 
@@ -59,67 +135,28 @@ export default function Admin() {
       setAnnonces(annoncesRes.data.annonces || []);
       setSettings(settingsRes.data.settings || { min_depot: '500' });
       setTransactions(txRes.data.transactions || []);
-    } catch { toast.error('Erreur de chargement admin'); }
+    } catch { toast.error('Erreur de chargement'); }
     finally { setLoading(false); }
   };
 
-  // ── Dépôts ──
-  const validateDepot = async (id) => {
-    try { await api.put(`/admin/depots/${id}/validate`); toast.success('Dépôt validé ✅'); loadAll(); }
-    catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
-  };
-  const rejectDepot = async (id) => {
-    try { await api.put(`/admin/depots/${id}/reject`); toast.success('Dépôt rejeté'); loadAll(); }
-    catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
-  };
+  const validateDepot = async (id) => { try { await api.put(`/admin/depots/${id}/validate`); toast.success('Dépôt validé ✅'); loadAll(); } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); } };
+  const rejectDepot = async (id) => { try { await api.put(`/admin/depots/${id}/reject`); toast.success('Dépôt rejeté'); loadAll(); } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); } };
+  const validateRetrait = async (id) => { try { await api.put(`/admin/retraits/${id}/validate`); toast.success('Retrait validé ✅'); loadAll(); } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); } };
+  const rejectRetrait = async (id) => { try { await api.put(`/admin/retraits/${id}/reject`); toast.success('Retrait rejeté'); loadAll(); } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); } };
+  const validateCadeau = async (id) => { try { await api.put(`/admin/cadeaux/${id}/validate`); toast.success('Cadeau crédité ✅'); loadAll(); } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); } };
+  const rejectCadeau = async (id) => { try { await api.put(`/admin/cadeaux/${id}/reject`); toast.success('Cadeau rejeté'); loadAll(); } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); } };
+  const validatePost = async (id) => { try { await api.put(`/admin/posts/${id}/validate`); toast.success('Post validé'); loadAll(); } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); } };
+  const rejectPost = async (id) => { try { await api.put(`/admin/posts/${id}/reject`); toast.success('Post rejeté'); loadAll(); } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); } };
 
-  // ── Retraits ──
-  const validateRetrait = async (id) => {
-    try { await api.put(`/admin/retraits/${id}/validate`); toast.success('Retrait validé ✅'); loadAll(); }
-    catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
-  };
-  const rejectRetrait = async (id) => {
-    try { await api.put(`/admin/retraits/${id}/reject`); toast.success('Retrait rejeté, remboursé'); loadAll(); }
-    catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
-  };
-
-  // ── Cadeaux VIP ──
-  const validateCadeau = async (id) => {
-    try { await api.put(`/admin/cadeaux/${id}/validate`); toast.success('Cadeau validé et crédité ✅'); loadAll(); }
-    catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
-  };
-  const rejectCadeau = async (id) => {
-    try { await api.put(`/admin/cadeaux/${id}/reject`); toast.success('Cadeau rejeté'); loadAll(); }
-    catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
-  };
-
-  // ── Posts ──
-  const validatePost = async (id) => {
-    try { await api.put(`/admin/posts/${id}/validate`); toast.success('Post validé'); loadAll(); }
-    catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
-  };
-  const rejectPost = async (id) => {
-    try { await api.put(`/admin/posts/${id}/reject`); toast.success('Post rejeté'); loadAll(); }
-    catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
-  };
-
-  // ── Crédit ──
   const handleCredit = async () => {
     if (!creditAmount || isNaN(creditAmount)) return toast.error('Montant invalide');
-    try {
-      await api.put(`/admin/users/${creditModal}/credit`, { montant: parseFloat(creditAmount) });
-      toast.success('Crédit effectué ✅'); setCreditModal(null); setCreditAmount(''); loadAll();
-    } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
+    try { await api.put(`/admin/users/${creditModal}/credit`, { montant: parseFloat(creditAmount) }); toast.success('Crédit effectué ✅'); setCreditModal(null); setCreditAmount(''); loadAll(); }
+    catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
   };
 
-  // ── Settings ──
   const saveSettings = async () => {
-    try {
-      await api.put('/admin/settings', { cle: 'min_depot', valeur: settings.min_depot });
-      toast.success('Minimum de dépôt sauvegardé ✅');
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Erreur — exécutez fixes.sql dans Supabase');
-    }
+    try { await api.put('/admin/settings', { cle: 'min_depot', valeur: settings.min_depot }); toast.success('Sauvegardé ✅'); }
+    catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
   };
 
   const saveCommissions = async () => {
@@ -129,29 +166,18 @@ export default function Admin() {
         api.put('/admin/settings', { cle: 'commission_niveau2', valeur: settings.commission_niveau2 ?? '5' }),
         api.put('/admin/settings', { cle: 'commission_niveau3', valeur: settings.commission_niveau3 ?? '2' }),
       ]);
-      toast.success('Commissions de parrainage sauvegardées ✅');
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Erreur — exécutez fixes.sql dans Supabase');
-    }
+      toast.success('Commissions sauvegardées ✅');
+    } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
   };
 
-  // ── Plans ──
   const openPlanModal = (plan = null) => {
-    if (plan) {
-      setPlanForm({ nom: plan.nom, prix: plan.prix, duree_jours: plan.duree_jours, rendement_journalier: plan.rendement_journalier });
-      setPlanModal(plan.id);
-    } else {
-      setPlanForm({ nom: '', prix: '', duree_jours: '', rendement_journalier: '' });
-      setPlanModal('new');
-    }
+    if (plan) { setPlanForm({ nom: plan.nom, prix: plan.prix, duree_jours: plan.duree_jours, rendement_journalier: plan.rendement_journalier }); setPlanModal(plan.id); }
+    else { setPlanForm({ nom: '', prix: '', duree_jours: '', rendement_journalier: '' }); setPlanModal('new'); }
   };
   const savePlan = async () => {
     try {
-      if (planModal === 'new') {
-        await api.post('/admin/plans', planForm); toast.success('Plan créé ✅');
-      } else {
-        await api.put(`/admin/plans/${planModal}`, planForm); toast.success('Plan modifié ✅');
-      }
+      if (planModal === 'new') { await api.post('/admin/plans', planForm); toast.success('Plan créé ✅'); }
+      else { await api.put(`/admin/plans/${planModal}`, planForm); toast.success('Plan modifié ✅'); }
       setPlanModal(null); loadAll();
     } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
   };
@@ -161,602 +187,579 @@ export default function Admin() {
     catch { toast.error('Erreur'); }
   };
 
-  // ── Annonces images ──
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) return toast.error('Sélectionnez une image');
     setImageFile(file);
-    const url = URL.createObjectURL(file);
-    setImagePreview(url);
+    setImagePreview(URL.createObjectURL(file));
   };
-
   const uploadAnnonce = async () => {
     if (!imageFile) return toast.error('Sélectionnez une image');
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append('image', imageFile);
-      await api.post('/admin/annonces', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      await api.post('/admin/annonces', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       toast.success('Affiche publiée ✅');
-      setImageFile(null);
-      setImagePreview(null);
+      setImageFile(null); setImagePreview(null);
       if (fileRef.current) fileRef.current.value = '';
       loadAll();
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Erreur — exécutez fixes.sql dans Supabase');
-    } finally { setUploading(false); }
+    } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
+    finally { setUploading(false); }
   };
-
   const toggleAnnonce = async (ann) => {
-    try {
-      await api.put(`/admin/annonces/${ann.id}`, { actif: !ann.actif });
-      toast.success(ann.actif ? 'Affiche masquée' : 'Affiche visible ✅'); loadAll();
-    } catch { toast.error('Erreur'); }
+    try { await api.put(`/admin/annonces/${ann.id}`, { actif: !ann.actif }); toast.success(ann.actif ? 'Masqué' : 'Visible ✅'); loadAll(); }
+    catch { toast.error('Erreur'); }
   };
-
   const deleteAnnonce = async (id) => {
     if (!confirm('Supprimer cette affiche ?')) return;
-    try { await api.delete(`/admin/annonces/${id}`); toast.success('Affiche supprimée'); loadAll(); }
+    try { await api.delete(`/admin/annonces/${id}`); toast.success('Supprimée'); loadAll(); }
     catch { toast.error('Erreur'); }
   };
 
   const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0));
-  const statusColor = { valide: 'green', en_attente: 'yellow', rejete: 'red' };
 
-  const TABS = [
-    { key: 'depots', label: 'Dépôts', icon: 'fa-arrow-down', badge: depots.filter(d => d.statut === 'en_attente').length },
-    { key: 'retraits', label: 'Retraits', icon: 'fa-hand-holding-usd', badge: retraits.filter(r => r.statut === 'en_attente').length },
-    { key: 'cadeaux', label: 'Cadeaux VIP', icon: 'fa-gift', badge: cadeaux.filter(c => c.statut === 'en_attente').length },
-    { key: 'transactions', label: 'Transactions', icon: 'fa-receipt' },
-    { key: 'users', label: 'Utilisateurs', icon: 'fa-users' },
-    { key: 'posts', label: 'Posts', icon: 'fa-newspaper', badge: posts.filter(p => p.statut === 'en_attente').length },
-    { key: 'plans', label: 'Plans VIP', icon: 'fa-chart-line' },
-    { key: 'annonces', label: 'Affiches', icon: 'fa-image' },
-    { key: 'settings', label: 'Paramètres', icon: 'fa-cog' },
+  const MENU = [
+    { key: 'home', label: 'Tableau de bord', icon: 'fa-tachometer-alt', color: '#FF9500' },
+    { key: 'depots', label: 'Dépôts', icon: 'fa-arrow-down', color: '#34C759', badge: depots.filter(d => d.statut === 'en_attente').length },
+    { key: 'retraits', label: 'Retraits', icon: 'fa-hand-holding-usd', color: '#007AFF', badge: retraits.filter(r => r.statut === 'en_attente').length },
+    { key: 'cadeaux', label: 'Cadeaux VIP', icon: 'fa-gift', color: '#FF9500', badge: cadeaux.filter(c => c.statut === 'en_attente').length },
+    { key: 'transactions', label: 'Transactions', icon: 'fa-receipt', color: '#5856D6' },
+    { key: 'users', label: 'Utilisateurs', icon: 'fa-users', color: '#007AFF' },
+    { key: 'posts', label: 'Posts', icon: 'fa-newspaper', color: '#FF3B30', badge: posts.filter(p => p.statut === 'en_attente').length },
+    { key: 'plans', label: 'Plans VIP', icon: 'fa-chart-line', color: '#34C759' },
+    { key: 'annonces', label: 'Affiches', icon: 'fa-image', color: '#FF9500' },
+    { key: 'settings', label: 'Paramètres', icon: 'fa-cog', color: '#8E8E93' },
   ];
 
+  const totalBadges = MENU.reduce((a, m) => a + (m.badge || 0), 0);
+
+  const paginated = (arr, key) => arr.slice((pages[key] - 1) * PAGE_SIZE, pages[key] * PAGE_SIZE);
+
+  const navigate_ = (key) => { setTab(key); setSidebarOpen(false); setPages(p => ({ ...p, [key]: 1 })); };
+
   if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg-dark)' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg-page)', flexDirection: 'column', gap: 16 }}>
+      <div style={{ width: 48, height: 48, borderRadius: 14, background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <i className="fas fa-shield-alt" style={{ color: '#fff', fontSize: 22 }} />
+      </div>
       <div className="loading-spinner" />
     </div>
   );
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', maxWidth: 900, margin: '0 auto', padding: '20px 16px' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-page)', maxWidth: 430, margin: '0 auto', position: 'relative' }}>
 
-      {/* Modal Crédit */}
-      {creditModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 20, padding: 24, width: '100%', maxWidth: 380 }}>
-            <h3 style={{ fontWeight: 700, marginBottom: 20 }}>Créditer l'utilisateur</h3>
-            <div className="input-group">
-              <label>Montant (FCFA)</label>
-              <input type="number" placeholder="Ex: 10000" value={creditAmount} onChange={e => setCreditAmount(e.target.value)} />
-            </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-              <button className="btn btn-outline" onClick={() => { setCreditModal(null); setCreditAmount(''); }} style={{ flex: 1, padding: '12px' }}>Annuler</button>
-              <button className="btn btn-primary" onClick={handleCredit} style={{ flex: 1, padding: '12px' }}>Créditer</button>
-            </div>
-          </div>
-        </div>
+      {/* ── Sidebar overlay ── */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 300, backdropFilter: 'blur(2px)' }}
+        />
       )}
 
-      {/* Modal Plan */}
-      {planModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 20, padding: 24, width: '100%', maxWidth: 420 }}>
-            <h3 style={{ fontWeight: 700, marginBottom: 20 }}>{planModal === 'new' ? 'Nouveau plan' : 'Modifier le plan'}</h3>
-            {[
-              { key: 'nom', label: 'Nom du plan', type: 'text', placeholder: 'Ex: VIP 1' },
-              { key: 'prix', label: 'Prix (FCFA)', type: 'number', placeholder: 'Ex: 1000' },
-              { key: 'duree_jours', label: 'Durée (jours)', type: 'number', placeholder: 'Ex: 30' },
-              { key: 'rendement_journalier', label: 'Rendement journalier (%)', type: 'number', placeholder: 'Ex: 1.5' },
-            ].map(f => (
-              <div className="input-group" key={f.key} style={{ marginBottom: 12 }}>
-                <label>{f.label}</label>
-                <input type={f.type} placeholder={f.placeholder} value={planForm[f.key]} onChange={e => setPlanForm(p => ({ ...p, [f.key]: e.target.value }))} />
-              </div>
-            ))}
-            {planForm.prix && planForm.rendement_journalier && (
-              <p style={{ fontSize: 12, color: 'var(--green-primary)', marginBottom: 12 }}>
-                Revenu/j : {fmt(parseFloat(planForm.prix || 0) * parseFloat(planForm.rendement_journalier || 0) / 100)} FCFA
-              </p>
-            )}
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-outline" onClick={() => setPlanModal(null)} style={{ flex: 1, padding: '12px' }}>Annuler</button>
-              <button className="btn btn-primary" onClick={savePlan} style={{ flex: 1, padding: '12px' }}>
-                {planModal === 'new' ? 'Créer' : 'Modifier'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontWeight: 800, fontSize: 22 }}>
-            <i className="fas fa-shield-alt" style={{ color: 'var(--blue-primary)', marginRight: 10 }} />Administration
-          </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>GIFETAL PRO</p>
-        </div>
-        <button onClick={() => navigate('/')} style={{ padding: '10px 16px', borderRadius: 10, background: 'rgba(0,0,0,0.05)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', cursor: 'pointer' }}>
-          <i className="fas fa-home" /> Accueil
-        </button>
-      </div>
-
-      {/* Stats */}
-      {stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
-          {[
-            { label: 'Utilisateurs', value: stats.users.count, icon: 'fa-users', color: 'var(--green-primary)' },
-            { label: 'Dépôts validés', value: `${fmt(stats.depots.total)} FCFA`, icon: 'fa-arrow-down', color: 'var(--blue-primary)' },
-            { label: 'Retraits validés', value: `${fmt(stats.retraits.total)} FCFA`, icon: 'fa-hand-holding-usd', color: '#f59e0b' },
-            { label: 'Plans actifs', value: stats.commandes.count, icon: 'fa-chart-line', color: '#a855f7' },
-          ].map(s => (
-            <div key={s.label} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 14, padding: '16px', textAlign: 'center' }}>
-              <i className={`fas ${s.icon}`} style={{ fontSize: 24, color: s.color, marginBottom: 8 }} />
-              <p style={{ fontWeight: 700, fontSize: 16 }}>{s.value}</p>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{s.label}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-        {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{
-            padding: '9px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 12, position: 'relative',
-            background: tab === t.key ? 'linear-gradient(135deg,var(--green-primary),var(--green-dark))' : 'rgba(0,0,0,0.05)',
-            color: tab === t.key ? '#fff' : 'var(--text-muted)',
-          }}>
-            <i className={`fas ${t.icon}`} style={{ marginRight: 5 }} />{t.label}
-            {t.badge > 0 && (
-              <span style={{ position: 'absolute', top: -4, right: -4, background: '#ef4444', color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
-                {t.badge}
-              </span>
-            )}
+      {/* ── Sidebar ── */}
+      <div style={{
+        position: 'fixed', top: 0, left: sidebarOpen ? 0 : '-280px', width: 272, height: '100%',
+        background: '#fff', zIndex: 400, transition: 'left 0.3s cubic-bezier(.4,0,.2,1)',
+        boxShadow: sidebarOpen ? '4px 0 32px rgba(0,0,0,0.15)' : 'none',
+        display: 'flex', flexDirection: 'column', overflowY: 'auto',
+      }}>
+        {/* Sidebar header */}
+        <div style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-dark))', padding: '48px 20px 24px', position: 'relative' }}>
+          <button onClick={() => setSidebarOpen(false)} style={{ position: 'absolute', top: 14, right: 14, width: 32, height: 32, borderRadius: 50, border: 'none', background: 'rgba(255,255,255,0.2)', color: '#fff', cursor: 'pointer', fontSize: 16 }}>
+            ✕
           </button>
-        ))}
-      </div>
-
-      {/* ─── DÉPÔTS ─── */}
-      {tab === 'depots' && (
-        <div>
-          {depots.filter(d => d.statut === 'en_attente').length > 0 && (
-            <p style={{ color: '#f59e0b', fontSize: 13, marginBottom: 12, fontWeight: 600 }}>
-              <i className="fas fa-clock" style={{ marginRight: 6 }} />
-              {depots.filter(d => d.statut === 'en_attente').length} dépôt(s) en attente
-            </p>
-          )}
-          {depots.map(d => (
-            <div key={d.id} className="card" style={{ marginBottom: 10, padding: '14px 16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                <div>
-                  <p style={{ fontWeight: 700 }}>{d.nom} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>• {d.telephone}</span></p>
-                  <p style={{ color: 'var(--green-primary)', fontWeight: 700, fontSize: 16 }}>{fmt(d.montant)} FCFA</p>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{d.pays} • {d.operateur} • {new Date(d.date_depot).toLocaleDateString('fr-FR')}</p>
-                </div>
-                <span className={`badge badge-${statusColor[d.statut] || 'yellow'}`}>{d.statut}</span>
-              </div>
-              {d.statut === 'en_attente' && (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => validateDepot(d.id)} style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'rgba(27,42,107,0.15)', color: 'var(--green-primary)', fontWeight: 600, cursor: 'pointer' }}>
-                    <i className="fas fa-check" /> Valider
-                  </button>
-                  <button onClick={() => rejectDepot(d.id)} style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'rgba(239,68,68,0.1)', color: 'var(--error)', fontWeight: 600, cursor: 'pointer' }}>
-                    <i className="fas fa-times" /> Rejeter
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-          {depots.length === 0 && <div className="empty-state"><i className="fas fa-inbox" /><p>Aucun dépôt</p></div>}
-        </div>
-      )}
-
-      {/* ─── RETRAITS ─── */}
-      {tab === 'retraits' && (
-        <div>
-          {retraits.map(r => (
-            <div key={r.id} className="card" style={{ marginBottom: 10, padding: '14px 16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                <div>
-                  <p style={{ fontWeight: 700 }}>{r.nom} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>• {r.telephone}</span></p>
-                  <p style={{ color: 'var(--blue-primary)', fontWeight: 700, fontSize: 16 }}>{fmt(r.montant)} FCFA</p>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.methode} • {r.numero_compte} • {new Date(r.date_demande).toLocaleDateString('fr-FR')}</p>
-                </div>
-                <span className={`badge badge-${statusColor[r.statut] || 'yellow'}`}>{r.statut}</span>
-              </div>
-              {r.statut === 'en_attente' && (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => validateRetrait(r.id)} style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'rgba(27,42,107,0.15)', color: 'var(--green-primary)', fontWeight: 600, cursor: 'pointer' }}>
-                    <i className="fas fa-check" /> Valider
-                  </button>
-                  <button onClick={() => rejectRetrait(r.id)} style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'rgba(239,68,68,0.1)', color: 'var(--error)', fontWeight: 600, cursor: 'pointer' }}>
-                    <i className="fas fa-times" /> Rejeter
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-          {retraits.length === 0 && <div className="empty-state"><i className="fas fa-inbox" /><p>Aucun retrait</p></div>}
-        </div>
-      )}
-
-      {/* ─── CADEAUX VIP ─── */}
-      {tab === 'cadeaux' && (
-        <div>
-          {cadeaux.filter(c => c.statut === 'en_attente').length > 0 && (
-            <p style={{ color: '#f59e0b', fontSize: 13, marginBottom: 12, fontWeight: 600 }}>
-              <i className="fas fa-clock" style={{ marginRight: 6 }} />
-              {cadeaux.filter(c => c.statut === 'en_attente').length} cadeau(x) en attente
-            </p>
-          )}
-          {cadeaux.map(c => (
-            <div key={c.id} className="card" style={{ marginBottom: 10, padding: '14px 16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                <div>
-                  <p style={{ fontWeight: 700 }}>{c.nom} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>• {c.telephone}</span></p>
-                  <p style={{ color: 'var(--green-primary)', fontWeight: 700, fontSize: 16 }}>{fmt(c.montant)} FCFA</p>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>Cadeau VIP {c.niveau} • {new Date(c.date_demande).toLocaleDateString('fr-FR')}</p>
-                </div>
-                <span className={`badge badge-${statusColor[c.statut] || 'yellow'}`}>{c.statut}</span>
-              </div>
-              {c.statut === 'en_attente' && (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => validateCadeau(c.id)} style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'rgba(27,42,107,0.15)', color: 'var(--green-primary)', fontWeight: 600, cursor: 'pointer' }}>
-                    <i className="fas fa-check" /> Valider & créditer
-                  </button>
-                  <button onClick={() => rejectCadeau(c.id)} style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: 'rgba(239,68,68,0.1)', color: 'var(--error)', fontWeight: 600, cursor: 'pointer' }}>
-                    <i className="fas fa-times" /> Rejeter
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-          {cadeaux.length === 0 && <div className="empty-state"><i className="fas fa-inbox" /><p>Aucun cadeau réclamé</p></div>}
-        </div>
-      )}
-
-      {/* ─── TRANSACTIONS ─── */}
-      {tab === 'transactions' && (
-        <div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-            <select value={txTypeFilter} onChange={e => setTxTypeFilter(e.target.value)} style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: 13 }}>
-              <option value="all">Tous les types</option>
-              <option value="depot">Dépôt</option>
-              <option value="retrait">Retrait</option>
-              <option value="investissement">Investissement</option>
-              <option value="parrainage">Commission parrainage</option>
-              <option value="revenu">Revenu investissement</option>
-              <option value="bonus">Bonus roue</option>
-              <option value="credit_admin">Crédit administrateur</option>
-            </select>
-            <select value={txStatutFilter} onChange={e => setTxStatutFilter(e.target.value)} style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: 13 }}>
-              <option value="all">Tous les statuts</option>
-              <option value="valide">Validé</option>
-              <option value="en_attente">En attente</option>
-              <option value="rejete">Rejeté</option>
-              <option value="actif">Actif</option>
-            </select>
+          <div style={{ width: 52, height: 52, borderRadius: 14, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+            <i className="fas fa-shield-alt" style={{ color: '#fff', fontSize: 24 }} />
           </div>
-          {transactions
-            .filter(t => (txTypeFilter === 'all' || t.kind === txTypeFilter) && (txStatutFilter === 'all' || t.statut === txStatutFilter))
-            .map(t => (
-              <div key={t.id} className="card" style={{ marginBottom: 10, padding: '12px 16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <p style={{ fontWeight: 700, fontSize: 14 }}>{t.label}</p>
-                    {t.user && <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{t.user.nom} • {t.user.telephone}</p>}
-                    <p style={{ color: 'var(--text-muted)', fontSize: 11 }}>{new Date(t.date).toLocaleString('fr-FR')} • {t.id}</p>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <p style={{ fontWeight: 700, fontSize: 15, color: t.sens === '+' ? 'var(--green-primary)' : 'var(--text-primary)' }}>{t.sens}{fmt(t.montant)}</p>
-                    <span className={`badge badge-${statusColor[t.statut] || 'yellow'}`}>{t.statut}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          {transactions.length === 0 && <div className="empty-state"><i className="fas fa-inbox" /><p>Aucune transaction</p></div>}
+          <h2 style={{ color: '#fff', fontWeight: 800, fontSize: 18 }}>Administration</h2>
+          <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 2 }}>AFRILAND INVEST</p>
         </div>
-      )}
 
-      {/* ─── UTILISATEURS ─── */}
-      {tab === 'users' && (
-        <div>
-          {users.map(u => (
-            <div key={u.id} className="card" style={{ marginBottom: 10, padding: '14px 16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <p style={{ fontWeight: 700 }}>{u.nom} {u.role === 'admin' && <span className="badge badge-blue" style={{ marginLeft: 6 }}>Admin</span>}</p>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{u.telephone} • {u.pays}</p>
-                  <p style={{ color: 'var(--green-primary)', fontWeight: 600, fontSize: 13 }}>{fmt(u.solde)} FCFA</p>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 11 }}>{new Date(u.date_inscription).toLocaleDateString('fr-FR')}</p>
-                </div>
-                <button onClick={() => { setCreditModal(u.id); setCreditAmount(''); }} style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: 'rgba(27,42,107,0.15)', color: 'var(--green-primary)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>
-                  <i className="fas fa-plus" /> Créditer
-                </button>
-              </div>
-            </div>
-          ))}
-          {users.length === 0 && <div className="empty-state"><i className="fas fa-users" /><p>Aucun utilisateur</p></div>}
-        </div>
-      )}
-
-      {/* ─── POSTS ─── */}
-      {tab === 'posts' && (
-        <div>
-          {posts.map(p => (
-            <div key={p.id} className="card" style={{ marginBottom: 10, padding: '14px 16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontWeight: 700, marginBottom: 4 }}>{p.nom}</p>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 }}>{p.message}</p>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 4 }}>{new Date(p.date_creation).toLocaleDateString('fr-FR')}</p>
-                </div>
-                <span className={`badge badge-${statusColor[p.statut] || 'yellow'}`}>{p.statut}</span>
-              </div>
-              {p.statut === 'en_attente' && (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => validatePost(p.id)} style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', background: 'rgba(27,42,107,0.15)', color: 'var(--green-primary)', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
-                    <i className="fas fa-check" /> Valider
-                  </button>
-                  <button onClick={() => rejectPost(p.id)} style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', background: 'rgba(239,68,68,0.1)', color: 'var(--error)', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
-                    <i className="fas fa-times" /> Rejeter
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-          {posts.length === 0 && <div className="empty-state"><i className="fas fa-newspaper" /><p>Aucun post</p></div>}
-        </div>
-      )}
-
-      {/* ─── PLANS VIP ─── */}
-      {tab === 'plans' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <p style={{ fontWeight: 700, fontSize: 15 }}><i className="fas fa-chart-line" style={{ color: 'var(--green-primary)', marginRight: 8 }} />Plans d'investissement ({plans.length})</p>
-            <button onClick={() => openPlanModal()} className="btn btn-primary" style={{ padding: '9px 14px', fontSize: 12 }}>
-              <i className="fas fa-plus" /> Ajouter
-            </button>
-          </div>
-          {plans.map((plan, idx) => {
-            const revJ = (plan.prix * plan.rendement_journalier) / 100;
-            const revTotal = revJ * plan.duree_jours;
-            const COLORS = ['#1B2A6B', '#000000', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#14b8a6'];
-            const color = COLORS[idx % COLORS.length];
-            return (
-              <div key={plan.id} className="card" style={{ marginBottom: 10, padding: '14px 16px', borderLeft: `3px solid ${color}` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 4, color }}>{plan.nom}</p>
-                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                      <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Prix : <strong style={{ color: 'var(--text-primary)' }}>{fmt(plan.prix)} FCFA</strong></p>
-                      <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Durée : <strong style={{ color: 'var(--text-primary)' }}>{plan.duree_jours}j</strong></p>
-                      <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Rend. : <strong style={{ color: 'var(--green-primary)' }}>{plan.rendement_journalier}%/j</strong></p>
-                    </div>
-                    <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                      +{fmt(revJ)} FCFA/j • Total : {fmt(revTotal)} FCFA
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => openPlanModal(plan)} style={{ padding: '6px 10px', borderRadius: 8, border: 'none', background: 'rgba(0,0,0,0.15)', color: 'var(--blue-primary)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>
-                      <i className="fas fa-edit" />
-                    </button>
-                    <button onClick={() => deletePlan(plan.id)} style={{ padding: '6px 10px', borderRadius: 8, border: 'none', background: 'rgba(239,68,68,0.1)', color: 'var(--error)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>
-                      <i className="fas fa-trash" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          {plans.length === 0 && (
-            <div className="empty-state">
-              <i className="fas fa-chart-line" />
-              <p>Aucun plan — exécutez fixes.sql dans Supabase</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ─── AFFICHES (images) ─── */}
-      {tab === 'annonces' && (
-        <div>
-          <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>
-            <i className="fas fa-image" style={{ color: '#f59e0b', marginRight: 8 }} />Affiches du dashboard (images)
-          </p>
-
-          {/* Zone upload */}
-          <div className="card" style={{ marginBottom: 20, padding: 20, border: '2px dashed rgba(27,42,107,0.4)' }}>
-            <p style={{ fontWeight: 600, marginBottom: 14, color: 'var(--text-secondary)', fontSize: 14 }}>
-              <i className="fas fa-cloud-upload-alt" style={{ color: 'var(--green-primary)', marginRight: 8 }} />
-              Ajouter une nouvelle affiche
-            </p>
-
-            {/* Zone de clic pour choisir image */}
-            <div
-              onClick={() => fileRef.current?.click()}
+        {/* Menu items */}
+        <nav style={{ flex: 1, padding: '12px 0' }}>
+          {MENU.map(m => (
+            <button
+              key={m.key}
+              onClick={() => navigate_(m.key)}
               style={{
-                borderRadius: 14, border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.03)',
-                height: imagePreview ? 'auto' : 140, minHeight: 140,
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', overflow: 'hidden', marginBottom: 14, transition: 'all 0.2s',
+                width: '100%', display: 'flex', alignItems: 'center', gap: 14,
+                padding: '13px 20px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                background: tab === m.key ? m.color + '15' : 'transparent',
+                borderLeft: tab === m.key ? `3px solid ${m.color}` : '3px solid transparent',
+                transition: 'all 0.15s',
               }}
             >
-              {imagePreview ? (
-                <img src={imagePreview} alt="Aperçu" style={{ width: '100%', maxHeight: 260, objectFit: 'cover', borderRadius: 14 }} />
-              ) : (
-                <>
-                  <i className="fas fa-image" style={{ fontSize: 40, color: 'var(--text-muted)', marginBottom: 10 }} />
-                  <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Cliquez pour choisir une image</p>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>JPG, PNG, GIF — max 10 Mo</p>
-                </>
+              <div style={{ width: 34, height: 34, borderRadius: 9, background: m.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <i className={`fas ${m.icon}`} style={{ color: m.color, fontSize: 14 }} />
+              </div>
+              <span style={{ flex: 1, fontWeight: tab === m.key ? 700 : 500, fontSize: 14, color: tab === m.key ? m.color : 'var(--text-dark)' }}>{m.label}</span>
+              {(m.badge || 0) > 0 && (
+                <span style={{ background: '#FF3B30', color: '#fff', borderRadius: 20, padding: '1px 7px', fontSize: 11, fontWeight: 700 }}>
+                  {m.badge}
+                </span>
               )}
+            </button>
+          ))}
+        </nav>
+
+        {/* Sidebar footer */}
+        <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border-color)' }}>
+          <button onClick={() => navigate('/')} style={{ width: '100%', padding: '12px', borderRadius: 12, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-secondary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: 14 }}>
+            <i className="fas fa-home" style={{ color: 'var(--primary)' }} />Retour à l'accueil
+          </button>
+        </div>
+      </div>
+
+      {/* ── Top header bar ── */}
+      <div style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-dark))', padding: '0 16px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 200 }}>
+        <button
+          onClick={() => setSidebarOpen(true)}
+          style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.2)', color: '#fff', cursor: 'pointer', fontSize: 18, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, position: 'relative' }}
+        >
+          <span style={{ display: 'block', width: 18, height: 2, background: '#fff', borderRadius: 2 }} />
+          <span style={{ display: 'block', width: 18, height: 2, background: '#fff', borderRadius: 2 }} />
+          <span style={{ display: 'block', width: 18, height: 2, background: '#fff', borderRadius: 2 }} />
+          {totalBadges > 0 && (
+            <span style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8, background: '#FF3B30', borderRadius: '50%', border: '1.5px solid #FF9500' }} />
+          )}
+        </button>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>
+            {MENU.find(m => m.key === tab)?.label || 'Administration'}
+          </p>
+        </div>
+        <div style={{ width: 40 }} />
+      </div>
+
+      {/* ── Main content ── */}
+      <div style={{ padding: '20px 16px 40px' }}>
+
+        {/* ── Modals ── */}
+        {creditModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ background: '#fff', borderRadius: 20, padding: 24, width: '100%', maxWidth: 360 }}>
+              <h3 style={{ fontWeight: 800, marginBottom: 6 }}>Créditer l'utilisateur</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 20 }}>Entrez le montant à ajouter au solde</p>
+              <div className="input-group" style={{ marginBottom: 16 }}>
+                <label>Montant (FCFA)</label>
+                <input type="number" placeholder="Ex: 10000" value={creditAmount} onChange={e => setCreditAmount(e.target.value)} />
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => { setCreditModal(null); setCreditAmount(''); }} style={{ flex: 1, padding: '12px', borderRadius: 50, border: '1px solid var(--border-color)', background: 'transparent', fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
+                <button onClick={handleCredit} className="btn btn-primary" style={{ flex: 1, padding: '12px' }}>Créditer</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {planModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ background: '#fff', borderRadius: 20, padding: 24, width: '100%', maxWidth: 400 }}>
+              <h3 style={{ fontWeight: 800, marginBottom: 20 }}>{planModal === 'new' ? 'Nouveau plan VIP' : 'Modifier le plan'}</h3>
+              {[{ key: 'nom', label: 'Nom du plan', type: 'text', placeholder: 'Ex: VIP 1' }, { key: 'prix', label: 'Prix (FCFA)', type: 'number', placeholder: 'Ex: 1000' }, { key: 'duree_jours', label: 'Durée (jours)', type: 'number', placeholder: 'Ex: 30' }, { key: 'rendement_journalier', label: 'Rendement journalier (%)', type: 'number', placeholder: 'Ex: 1.5' }].map(f => (
+                <div className="input-group" key={f.key} style={{ marginBottom: 12 }}>
+                  <label>{f.label}</label>
+                  <input type={f.type} placeholder={f.placeholder} value={planForm[f.key]} onChange={e => setPlanForm(p => ({ ...p, [f.key]: e.target.value }))} />
+                </div>
+              ))}
+              {planForm.prix && planForm.rendement_journalier && (
+                <p style={{ fontSize: 12, color: '#34C759', marginBottom: 12, fontWeight: 600 }}>
+                  Revenu/jour : {fmt(parseFloat(planForm.prix || 0) * parseFloat(planForm.rendement_journalier || 0) / 100)} FCFA
+                </p>
+              )}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setPlanModal(null)} style={{ flex: 1, padding: '12px', borderRadius: 50, border: '1px solid var(--border-color)', background: 'transparent', fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
+                <button onClick={savePlan} className="btn btn-primary" style={{ flex: 1, padding: '12px' }}>{planModal === 'new' ? 'Créer' : 'Modifier'}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── HOME ─── */}
+        {tab === 'home' && stats && (
+          <div>
+            {/* Stats grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
+              {[
+                { label: 'Utilisateurs', value: stats.users.count, icon: 'fa-users', color: '#007AFF', bg: '#007AFF15' },
+                { label: 'Plans actifs', value: stats.commandes.count, icon: 'fa-chart-line', color: '#34C759', bg: '#34C75915' },
+                { label: 'Dépôts validés', value: `${fmt(stats.depots.total)}`, sub: 'FCFA', icon: 'fa-arrow-down', color: '#FF9500', bg: '#FF950015' },
+                { label: 'Retraits validés', value: `${fmt(stats.retraits.total)}`, sub: 'FCFA', icon: 'fa-hand-holding-usd', color: '#5856D6', bg: '#5856D615' },
+              ].map(s => (
+                <div key={s.label} style={{ background: '#fff', borderRadius: 18, padding: '18px 16px', boxShadow: 'var(--shadow-card)' }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                    <i className={`fas ${s.icon}`} style={{ color: s.color, fontSize: 16 }} />
+                  </div>
+                  <p style={{ fontWeight: 800, fontSize: 20, color: 'var(--text-dark)', lineHeight: 1 }}>{s.value}</p>
+                  {s.sub && <p style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{s.sub}</p>}
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{s.label}</p>
+                </div>
+              ))}
             </div>
 
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              style={{ display: 'none' }}
-              onChange={handleFileChange}
-            />
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              {imagePreview && (
-                <button onClick={() => { setImageFile(null); setImagePreview(null); if (fileRef.current) fileRef.current.value = ''; }}
-                  className="btn btn-outline" style={{ flex: 1, padding: '12px' }}>
-                  <i className="fas fa-times" /> Changer
+            {/* Quick actions */}
+            <h3 style={{ fontWeight: 800, fontSize: 15, marginBottom: 12, color: 'var(--text-dark)' }}>Accès rapide</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {MENU.filter(m => m.key !== 'home').map(m => (
+                <button key={m.key} onClick={() => navigate_(m.key)} style={{
+                  display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
+                  background: '#fff', borderRadius: 14, border: 'none', cursor: 'pointer',
+                  boxShadow: 'var(--shadow-card)', textAlign: 'left',
+                }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 11, background: m.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <i className={`fas ${m.icon}`} style={{ color: m.color, fontSize: 17 }} />
+                  </div>
+                  <span style={{ flex: 1, fontWeight: 600, fontSize: 14, color: 'var(--text-dark)' }}>{m.label}</span>
+                  {(m.badge || 0) > 0 && (
+                    <span style={{ background: '#FF3B30', color: '#fff', borderRadius: 20, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{m.badge}</span>
+                  )}
+                  <i className="fas fa-chevron-right" style={{ color: 'var(--text-muted)', fontSize: 12 }} />
                 </button>
-              )}
-              <button
-                onClick={uploadAnnonce}
-                disabled={!imageFile || uploading}
-                className="btn btn-primary"
-                style={{ flex: 1, padding: '12px', opacity: (!imageFile || uploading) ? 0.5 : 1 }}
-              >
-                {uploading
-                  ? <><span className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2, marginRight: 8 }} />Publication...</>
-                  : <><i className="fas fa-paper-plane" style={{ marginRight: 8 }} />Publier l'affiche</>
-                }
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ─── DÉPÔTS ─── */}
+        {tab === 'depots' && (
+          <div>
+            <SectionHeader icon="fa-arrow-down" title="Dépôts" badge={depots.filter(d => d.statut === 'en_attente').length} />
+            {paginated(depots, 'depots').map(d => (
+              <div key={d.id} style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', marginBottom: 10, boxShadow: 'var(--shadow-card)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <p style={{ fontWeight: 700, fontSize: 14 }}>{d.nom}</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{d.telephone} · {d.pays}</p>
+                    <p style={{ color: 'var(--primary)', fontWeight: 800, fontSize: 17, marginTop: 4 }}>{fmt(d.montant)} FCFA</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{d.operateur} · {new Date(d.date_depot).toLocaleDateString('fr-FR')}</p>
+                  </div>
+                  <StatusBadge statut={d.statut} />
+                </div>
+                {d.statut === 'en_attente' && <ActionBtns onValidate={() => validateDepot(d.id)} onReject={() => rejectDepot(d.id)} />}
+              </div>
+            ))}
+            {depots.length === 0 && <div className="empty-state"><i className="fas fa-inbox" /><p>Aucun dépôt</p></div>}
+            <Pagination total={depots.length} page={pages.depots} setPage={v => setPage('depots', v)} />
+          </div>
+        )}
+
+        {/* ─── RETRAITS ─── */}
+        {tab === 'retraits' && (
+          <div>
+            <SectionHeader icon="fa-hand-holding-usd" title="Retraits" badge={retraits.filter(r => r.statut === 'en_attente').length} />
+            {paginated(retraits, 'retraits').map(r => (
+              <div key={r.id} style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', marginBottom: 10, boxShadow: 'var(--shadow-card)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <p style={{ fontWeight: 700, fontSize: 14 }}>{r.nom}</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.telephone}</p>
+                    <p style={{ color: '#007AFF', fontWeight: 800, fontSize: 17, marginTop: 4 }}>{fmt(r.montant)} FCFA</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{r.methode} · {r.numero_compte} · {new Date(r.date_demande).toLocaleDateString('fr-FR')}</p>
+                  </div>
+                  <StatusBadge statut={r.statut} />
+                </div>
+                {r.statut === 'en_attente' && <ActionBtns onValidate={() => validateRetrait(r.id)} onReject={() => rejectRetrait(r.id)} />}
+              </div>
+            ))}
+            {retraits.length === 0 && <div className="empty-state"><i className="fas fa-inbox" /><p>Aucun retrait</p></div>}
+            <Pagination total={retraits.length} page={pages.retraits} setPage={v => setPage('retraits', v)} />
+          </div>
+        )}
+
+        {/* ─── CADEAUX VIP ─── */}
+        {tab === 'cadeaux' && (
+          <div>
+            <SectionHeader icon="fa-gift" title="Cadeaux VIP" badge={cadeaux.filter(c => c.statut === 'en_attente').length} />
+            {paginated(cadeaux, 'cadeaux').map(c => (
+              <div key={c.id} style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', marginBottom: 10, boxShadow: 'var(--shadow-card)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <p style={{ fontWeight: 700, fontSize: 14 }}>{c.nom}</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{c.telephone}</p>
+                    <p style={{ color: 'var(--primary)', fontWeight: 800, fontSize: 17, marginTop: 4 }}>{fmt(c.montant)} FCFA</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>Cadeau VIP {c.niveau} · {new Date(c.date_demande).toLocaleDateString('fr-FR')}</p>
+                  </div>
+                  <StatusBadge statut={c.statut} />
+                </div>
+                {c.statut === 'en_attente' && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    <button onClick={() => validateCadeau(c.id)} style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: '#34C75915', color: '#34C759', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                      <i className="fas fa-check" style={{ marginRight: 6 }} />Valider & créditer
+                    </button>
+                    <button onClick={() => rejectCadeau(c.id)} style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: '#FF3B3015', color: '#FF3B30', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                      <i className="fas fa-times" style={{ marginRight: 6 }} />Rejeter
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {cadeaux.length === 0 && <div className="empty-state"><i className="fas fa-gift" /><p>Aucun cadeau réclamé</p></div>}
+            <Pagination total={cadeaux.length} page={pages.cadeaux} setPage={v => setPage('cadeaux', v)} />
+          </div>
+        )}
+
+        {/* ─── TRANSACTIONS ─── */}
+        {tab === 'transactions' && (() => {
+          const filtered = transactions.filter(t =>
+            (txTypeFilter === 'all' || t.kind === txTypeFilter) &&
+            (txStatutFilter === 'all' || t.statut === txStatutFilter)
+          );
+          return (
+            <div>
+              <SectionHeader icon="fa-receipt" title="Transactions" />
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                <select value={txTypeFilter} onChange={e => { setTxTypeFilter(e.target.value); setPage('transactions', 1); }}
+                  style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-color)', background: '#fff', color: 'var(--text-dark)', fontSize: 13 }}>
+                  <option value="all">Tous les types</option>
+                  <option value="depot">Dépôt</option>
+                  <option value="retrait">Retrait</option>
+                  <option value="investissement">Investissement</option>
+                  <option value="parrainage">Commission parrainage</option>
+                  <option value="revenu">Revenu investissement</option>
+                  <option value="bonus">Bonus roue</option>
+                  <option value="credit_admin">Crédit administrateur</option>
+                </select>
+                <select value={txStatutFilter} onChange={e => { setTxStatutFilter(e.target.value); setPage('transactions', 1); }}
+                  style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-color)', background: '#fff', color: 'var(--text-dark)', fontSize: 13 }}>
+                  <option value="all">Tous les statuts</option>
+                  <option value="valide">Validé</option>
+                  <option value="en_attente">En attente</option>
+                  <option value="rejete">Rejeté</option>
+                  <option value="actif">Actif</option>
+                </select>
+              </div>
+              {paginated(filtered, 'transactions').map(t => (
+                <div key={t.id} style={{ background: '#fff', borderRadius: 16, padding: '12px 16px', marginBottom: 10, boxShadow: 'var(--shadow-card)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontWeight: 700, fontSize: 13 }}>{t.label}</p>
+                      {t.user && <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{t.user.nom} · {t.user.telephone}</p>}
+                      <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{new Date(t.date).toLocaleString('fr-FR')}</p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <p style={{ fontWeight: 800, fontSize: 15, color: t.sens === '+' ? '#34C759' : 'var(--text-dark)' }}>{t.sens}{fmt(t.montant)}</p>
+                      <StatusBadge statut={t.statut} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {filtered.length === 0 && <div className="empty-state"><i className="fas fa-receipt" /><p>Aucune transaction</p></div>}
+              <Pagination total={filtered.length} page={pages.transactions} setPage={v => setPage('transactions', v)} />
+            </div>
+          );
+        })()}
+
+        {/* ─── UTILISATEURS ─── */}
+        {tab === 'users' && (
+          <div>
+            <SectionHeader icon="fa-users" title={`Utilisateurs (${users.length})`} />
+            {paginated(users, 'users').map(u => (
+              <div key={u.id} style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', marginBottom: 10, boxShadow: 'var(--shadow-card)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 13, background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ color: '#fff', fontWeight: 800, fontSize: 18 }}>{(u.nom || '?')[0].toUpperCase()}</span>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <p style={{ fontWeight: 700, fontSize: 14 }}>{u.nom}</p>
+                      {u.role === 'admin' && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#007AFF20', color: '#007AFF', fontWeight: 700 }}>Admin</span>}
+                    </div>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{u.telephone} · {u.pays}</p>
+                    <p style={{ color: 'var(--primary)', fontWeight: 700, fontSize: 13, marginTop: 2 }}>{fmt(u.solde || 0)} FCFA</p>
+                  </div>
+                  <button onClick={() => { setCreditModal(u.id); setCreditAmount(''); }} style={{ padding: '8px 14px', borderRadius: 10, border: 'none', background: 'var(--primary)', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 12, flexShrink: 0 }}>
+                    <i className="fas fa-plus" /> Crédit
+                  </button>
+                </div>
+              </div>
+            ))}
+            {users.length === 0 && <div className="empty-state"><i className="fas fa-users" /><p>Aucun utilisateur</p></div>}
+            <Pagination total={users.length} page={pages.users} setPage={v => setPage('users', v)} />
+          </div>
+        )}
+
+        {/* ─── POSTS ─── */}
+        {tab === 'posts' && (
+          <div>
+            <SectionHeader icon="fa-newspaper" title="Posts" badge={posts.filter(p => p.statut === 'en_attente').length} />
+            {paginated(posts, 'posts').map(p => (
+              <div key={p.id} style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', marginBottom: 10, boxShadow: 'var(--shadow-card)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                  <div style={{ flex: 1, paddingRight: 10 }}>
+                    <p style={{ fontWeight: 700, fontSize: 14 }}>{p.nom}</p>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4, lineHeight: 1.4 }}>{p.message}</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 6 }}>{new Date(p.date_creation).toLocaleDateString('fr-FR')}</p>
+                  </div>
+                  <StatusBadge statut={p.statut} />
+                </div>
+                {p.statut === 'en_attente' && <ActionBtns onValidate={() => validatePost(p.id)} onReject={() => rejectPost(p.id)} />}
+              </div>
+            ))}
+            {posts.length === 0 && <div className="empty-state"><i className="fas fa-newspaper" /><p>Aucun post</p></div>}
+            <Pagination total={posts.length} page={pages.posts} setPage={v => setPage('posts', v)} />
+          </div>
+        )}
+
+        {/* ─── PLANS VIP ─── */}
+        {tab === 'plans' && (
+          <div>
+            <SectionHeader
+              icon="fa-chart-line"
+              title={`Plans VIP (${plans.length})`}
+              action={
+                <button onClick={() => openPlanModal()} style={{ padding: '9px 16px', borderRadius: 50, border: 'none', background: 'var(--primary)', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <i className="fas fa-plus" />Ajouter
+                </button>
+              }
+            />
+            {paginated(plans, 'plans').map((plan, idx) => {
+              const revJ = (plan.prix * plan.rendement_journalier) / 100;
+              const COLORS = ['#FF9500', '#007AFF', '#34C759', '#5856D6', '#FF3B30', '#FF9500', '#00C7BE'];
+              const color = COLORS[idx % COLORS.length];
+              return (
+                <div key={plan.id} style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', marginBottom: 10, boxShadow: 'var(--shadow-card)', borderLeft: `4px solid ${color}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontWeight: 800, fontSize: 15, color, marginBottom: 6 }}>{plan.nom}</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Prix : <strong style={{ color: 'var(--text-dark)' }}>{fmt(plan.prix)} FCFA</strong></span>
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Durée : <strong style={{ color: 'var(--text-dark)' }}>{plan.duree_jours}j</strong></span>
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Rend. : <strong style={{ color: '#34C759' }}>{plan.rendement_journalier}%/j</strong></span>
+                      </div>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>+{fmt(revJ)} FCFA/jour</p>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => openPlanModal(plan)} style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: '#007AFF15', color: '#007AFF', cursor: 'pointer' }}>
+                        <i className="fas fa-edit" style={{ fontSize: 14 }} />
+                      </button>
+                      <button onClick={() => deletePlan(plan.id)} style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: '#FF3B3015', color: '#FF3B30', cursor: 'pointer' }}>
+                        <i className="fas fa-trash" style={{ fontSize: 14 }} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {plans.length === 0 && <div className="empty-state"><i className="fas fa-chart-line" /><p>Aucun plan</p></div>}
+            <Pagination total={plans.length} page={pages.plans} setPage={v => setPage('plans', v)} />
+          </div>
+        )}
+
+        {/* ─── AFFICHES ─── */}
+        {tab === 'annonces' && (
+          <div>
+            <SectionHeader icon="fa-image" title="Affiches du dashboard" />
+
+            <div style={{ background: '#fff', borderRadius: 16, padding: 18, marginBottom: 20, boxShadow: 'var(--shadow-card)', border: '2px dashed var(--primary)40' }}>
+              <p style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: 'var(--text-dark)' }}>
+                <i className="fas fa-cloud-upload-alt" style={{ color: 'var(--primary)', marginRight: 8 }} />Ajouter une affiche
+              </p>
+              <div onClick={() => fileRef.current?.click()} style={{ borderRadius: 12, border: '1px solid var(--border-color)', background: 'var(--bg-page)', minHeight: 130, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', marginBottom: 14 }}>
+                {imagePreview ? (
+                  <img src={imagePreview} alt="Aperçu" style={{ width: '100%', maxHeight: 240, objectFit: 'cover' }} />
+                ) : (
+                  <>
+                    <i className="fas fa-image" style={{ fontSize: 36, color: 'var(--text-muted)', marginBottom: 8 }} />
+                    <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Cliquez pour choisir une image</p>
+                  </>
+                )}
+              </div>
+              <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
+              <div style={{ display: 'flex', gap: 10 }}>
+                {imagePreview && (
+                  <button onClick={() => { setImageFile(null); setImagePreview(null); if (fileRef.current) fileRef.current.value = ''; }} style={{ flex: 1, padding: '12px', borderRadius: 50, border: '1px solid var(--border-color)', background: 'transparent', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+                    Changer
+                  </button>
+                )}
+                <button onClick={uploadAnnonce} disabled={!imageFile || uploading} className="btn btn-primary" style={{ flex: 1, padding: '12px', opacity: (!imageFile || uploading) ? 0.5 : 1 }}>
+                  {uploading ? 'Publication...' : <><i className="fas fa-paper-plane" style={{ marginRight: 6 }} />Publier</>}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {paginated(annonces, 'annonces').map(ann => (
+                <div key={ann.id} style={{ borderRadius: 14, overflow: 'hidden', background: '#fff', boxShadow: 'var(--shadow-card)', opacity: ann.actif ? 1 : 0.5, position: 'relative' }}>
+                  {ann.image ? (
+                    <img src={`/uploads/${ann.image}`} alt="Affiche" style={{ width: '100%', height: 130, objectFit: 'cover', display: 'block' }} />
+                  ) : (
+                    <div style={{ height: 130, background: 'var(--bg-page)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <i className="fas fa-image" style={{ fontSize: 32, color: 'var(--text-muted)' }} />
+                    </div>
+                  )}
+                  <div style={{ position: 'absolute', top: 6, left: 6, fontSize: 10, padding: '2px 7px', borderRadius: 20, fontWeight: 700, background: ann.actif ? 'rgba(52,199,89,0.9)' : 'rgba(0,0,0,0.5)', color: '#fff' }}>
+                    {ann.actif ? '● Live' : '● Masqué'}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, padding: '8px 8px' }}>
+                    <button onClick={() => toggleAnnonce(ann)} style={{ flex: 1, padding: '6px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, background: ann.actif ? '#FF3B3015' : '#34C75915', color: ann.actif ? '#FF3B30' : '#34C759' }}>
+                      <i className={`fas ${ann.actif ? 'fa-eye-slash' : 'fa-eye'}`} /> {ann.actif ? 'Masquer' : 'Afficher'}
+                    </button>
+                    <button onClick={() => deleteAnnonce(ann.id)} style={{ padding: '6px 10px', borderRadius: 8, border: 'none', background: '#FF3B3015', color: '#FF3B30', cursor: 'pointer' }}>
+                      <i className="fas fa-trash" style={{ fontSize: 12 }} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {annonces.length === 0 && <div className="empty-state"><i className="fas fa-image" /><p>Aucune affiche</p></div>}
+            <Pagination total={annonces.length} page={pages.annonces} setPage={v => setPage('annonces', v)} />
+          </div>
+        )}
+
+        {/* ─── PARAMÈTRES ─── */}
+        {tab === 'settings' && (
+          <div>
+            <SectionHeader icon="fa-cog" title="Paramètres" />
+
+            <div style={{ background: '#fff', borderRadius: 16, padding: '18px 16px', marginBottom: 14, boxShadow: 'var(--shadow-card)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: '#FF950020', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className="fas fa-arrow-down" style={{ color: 'var(--primary)', fontSize: 14 }} />
+                </div>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: 14 }}>Dépôt minimum</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>Montant minimal pour déposer (FCFA)</p>
+                </div>
+              </div>
+              <div className="input-group" style={{ marginBottom: 12 }}>
+                <label>Montant minimum (FCFA)</label>
+                <input type="number" value={settings.min_depot || '500'} onChange={e => setSettings(s => ({ ...s, min_depot: e.target.value }))} placeholder="500" />
+              </div>
+              <button onClick={saveSettings} className="btn btn-primary" style={{ padding: '12px', borderRadius: 50 }}>
+                <i className="fas fa-save" style={{ marginRight: 8 }} />Enregistrer
+              </button>
+            </div>
+
+            <div style={{ background: '#fff', borderRadius: 16, padding: '18px 16px', marginBottom: 14, boxShadow: 'var(--shadow-card)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: '#34C75920', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className="fas fa-users" style={{ color: '#34C759', fontSize: 14 }} />
+                </div>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: 14 }}>Commissions de parrainage</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>Pourcentage versé au parrain (en %)</p>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+                {[1, 2, 3].map(n => (
+                  <div className="input-group" key={n}>
+                    <label>Niveau {n} (%)</label>
+                    <input type="number" value={settings[`commission_niveau${n}`] ?? (n === 1 ? '10' : n === 2 ? '5' : '2')}
+                      onChange={e => setSettings(s => ({ ...s, [`commission_niveau${n}`]: e.target.value }))} />
+                  </div>
+                ))}
+              </div>
+              <button onClick={saveCommissions} className="btn btn-primary" style={{ padding: '12px', borderRadius: 50 }}>
+                <i className="fas fa-save" style={{ marginRight: 8 }} />Enregistrer
               </button>
             </div>
           </div>
+        )}
 
-          {/* Liste des affiches */}
-          {annonces.length > 0 && (
-            <p style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>
-              {annonces.length} affiche{annonces.length > 1 ? 's' : ''} publiée{annonces.length > 1 ? 's' : ''}
-            </p>
-          )}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-            {annonces.map(ann => (
-              <div key={ann.id} style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--border-color)', opacity: ann.actif ? 1 : 0.45, position: 'relative' }}>
-                {ann.image ? (
-                  <img
-                    src={`/uploads/${ann.image}`}
-                    alt="Affiche"
-                    style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }}
-                  />
-                ) : (
-                  <div style={{ height: 160, background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <i className="fas fa-image" style={{ fontSize: 36, color: 'var(--text-muted)' }} />
-                  </div>
-                )}
-                {/* Badge statut */}
-                <div style={{ position: 'absolute', top: 8, left: 8 }}>
-                  <span style={{
-                    fontSize: 10, padding: '3px 8px', borderRadius: 20, fontWeight: 700,
-                    background: ann.actif ? 'rgba(27,42,107,0.9)' : 'rgba(0,0,0,0.6)',
-                    color: '#fff',
-                  }}>
-                    {ann.actif ? '● EN DIRECT' : '● Masqué'}
-                  </span>
-                </div>
-                {/* Actions */}
-                <div style={{ display: 'flex', gap: 6, padding: 8, background: 'var(--bg-card)' }}>
-                  <button onClick={() => toggleAnnonce(ann)} style={{
-                    flex: 1, padding: '7px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                    background: ann.actif ? 'rgba(239,68,68,0.1)' : 'rgba(27,42,107,0.15)',
-                    color: ann.actif ? 'var(--error)' : 'var(--green-primary)',
-                  }}>
-                    <i className={`fas ${ann.actif ? 'fa-eye-slash' : 'fa-eye'}`} /> {ann.actif ? 'Masquer' : 'Afficher'}
-                  </button>
-                  <button onClick={() => deleteAnnonce(ann.id)} style={{ padding: '7px 10px', borderRadius: 8, border: 'none', background: 'rgba(239,68,68,0.08)', color: 'var(--error)', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>
-                    <i className="fas fa-trash" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-          {annonces.length === 0 && (
-            <div className="empty-state">
-              <i className="fas fa-image" />
-              <p>Aucune affiche — uploadez votre première image</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ─── PARAMÈTRES ─── */}
-      {tab === 'settings' && (
-        <div>
-          <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>
-            <i className="fas fa-cog" style={{ color: 'var(--blue-primary)', marginRight: 8 }} />Paramètres généraux
-          </p>
-
-          <div className="card" style={{ padding: 20, marginBottom: 12 }}>
-            <p style={{ fontWeight: 700, marginBottom: 4 }}>Dépôt minimum</p>
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>Montant minimal qu'un utilisateur peut déposer (en FCFA)</p>
-            <div className="input-group" style={{ marginBottom: 16 }}>
-              <label>Montant minimum (FCFA)</label>
-              <input type="number" value={settings.min_depot || '500'} onChange={e => setSettings(s => ({ ...s, min_depot: e.target.value }))} placeholder="500" />
-            </div>
-            <button className="btn btn-primary" onClick={saveSettings} style={{ padding: '12px 24px' }}>
-              <i className="fas fa-save" style={{ marginRight: 8 }} />Enregistrer
-            </button>
-          </div>
-
-          <div className="card" style={{ padding: 20, marginBottom: 12 }}>
-            <p style={{ fontWeight: 700, marginBottom: 4 }}>
-              <i className="fas fa-users" style={{ color: 'var(--green-primary)', marginRight: 8 }} />Commissions de parrainage
-            </p>
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 16 }}>
-              Pourcentage versé au parrain sur chaque investissement de ses filleuls. Les nouvelles valeurs s'appliquent immédiatement à tous les achats suivants.
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
-              <div className="input-group">
-                <label>Niveau 1 (%)</label>
-                <input type="number" min="0" step="0.1" value={settings.commission_niveau1 ?? '10'} onChange={e => setSettings(s => ({ ...s, commission_niveau1: e.target.value }))} placeholder="10" />
-              </div>
-              <div className="input-group">
-                <label>Niveau 2 (%)</label>
-                <input type="number" min="0" step="0.1" value={settings.commission_niveau2 ?? '5'} onChange={e => setSettings(s => ({ ...s, commission_niveau2: e.target.value }))} placeholder="5" />
-              </div>
-              <div className="input-group">
-                <label>Niveau 3 (%)</label>
-                <input type="number" min="0" step="0.1" value={settings.commission_niveau3 ?? '2'} onChange={e => setSettings(s => ({ ...s, commission_niveau3: e.target.value }))} placeholder="2" />
-              </div>
-            </div>
-            <button className="btn btn-primary" onClick={saveCommissions} style={{ padding: '12px 24px' }}>
-              <i className="fas fa-save" style={{ marginRight: 8 }} />Enregistrer les commissions
-            </button>
-          </div>
-
-          <div className="card" style={{ padding: 16, background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)' }}>
-            <p style={{ fontWeight: 600, fontSize: 13, color: '#f87171', marginBottom: 8 }}>
-              <i className="fas fa-exclamation-triangle" style={{ marginRight: 6 }} />Requis : exécuter fixes.sql dans Supabase
-            </p>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-              Si vous avez une erreur de sauvegarde, c'est que les tables <code>settings</code> et <code>annonces</code> n'existent pas encore. Allez dans <strong>Supabase → SQL Editor</strong> et exécutez le contenu du fichier <code>server/fixes.sql</code>.
-            </p>
-          </div>
-
-          <div className="card" style={{ padding: 16, marginTop: 12 }}>
-            <p style={{ fontWeight: 700, marginBottom: 12 }}>Probabilités de la roue</p>
-            {[
-              { label: '1 000 FCFA', prob: '0%', color: '#ef4444' },
-              { label: '500 FCFA', prob: '0,001%', color: '#f59e0b' },
-              { label: '200 FCFA', prob: '0,01%', color: '#a855f7' },
-              { label: '100 FCFA', prob: '0,01%', color: '#000000' },
-              { label: '50 FCFA', prob: '0,01%', color: '#1B2A6B' },
-              { label: '0 FCFA', prob: '~99,96%', color: 'var(--text-muted)' },
-            ].map(r => (
-              <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
-                <span style={{ fontSize: 13, color: r.color, fontWeight: 600 }}>{r.label}</span>
-                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{r.prob}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
