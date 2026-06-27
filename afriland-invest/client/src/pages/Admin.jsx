@@ -512,7 +512,7 @@ export default function Admin() {
             <i className="fas fa-shield-alt" style={{ color: '#fff', fontSize: 24 }} />
           </div>
           <h2 style={{ color: '#fff', fontWeight: 800, fontSize: 18 }}>Administration</h2>
-          <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 2 }}>AFRILAND INVEST</p>
+          <a href="https://wa.me/237687194830" target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2, textDecoration: 'none', display: 'block' }}>payfastjob made by @D.r~ASH</a>
         </div>
 
         {/* Menu items */}
