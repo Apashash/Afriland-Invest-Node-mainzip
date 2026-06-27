@@ -78,7 +78,6 @@ export default function Account() {
     { fa: 'fa-dice',         bg: '#FCE4EC', color: '#FF3B30', label: 'Roue de la fortune', path: '/wheel' },
     { fa: 'fa-wallet',       bg: '#EDE7F6', color: '#5856D6', label: 'Mon portefeuille', path: '/wallet' },
     { fa: 'fa-question-circle', bg: '#E0F7FA', color: '#00BCD4', label: 'FAQ / Aide', path: '/faq' },
-    { fa: 'fa-info-circle',  bg: '#E8EAF6', color: '#3F51B5', label: 'À propos — payfastjob made by @D.r~ASH', onPress: () => window.open('https://wa.me/237687194830', '_blank') },
   ];
 
   return (
