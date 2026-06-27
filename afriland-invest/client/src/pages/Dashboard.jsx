@@ -15,9 +15,10 @@ const FAUX_NOTIFS = [
 ];
 
 const STATIC_SLIDES = [
-  { id: 's1', couleur: '#FF9500', titre: 'Investissez & Gagnez', contenu: 'Des rendements jusqu\'à 19.5% par jour' },
-  { id: 's2', couleur: '#1A1A1A', titre: 'Croissance Rapide', contenu: 'Maximisez vos revenus dès aujourd\'hui' },
-  { id: 's3', couleur: '#e68500', titre: 'Plans VIP Exclusifs', contenu: 'Accédez à des opportunités premium' },
+  { id: 's1', image_local: '/slide1.jpg', titre: 'Investissez & Gagnez', contenu: 'Des rendements jusqu\'à 19.5% par jour' },
+  { id: 's2', image_local: '/slide2.jpg', titre: 'Partenariats Solides', contenu: 'Rejoignez une communauté de confiance' },
+  { id: 's3', image_local: '/slide3.jpg', titre: 'Opportunités Premium', contenu: 'Accédez à des plans VIP exclusifs' },
+  { id: 's4', image_local: '/slide4.jpg', titre: 'Croissance Financière', contenu: 'Maximisez vos revenus dès aujourd\'hui' },
 ];
 
 const MENU_ICONS = [
@@ -239,15 +240,25 @@ export default function Dashboard() {
         <div style={{
           borderRadius: 16, overflow: 'hidden',
           height: 160, position: 'relative',
-          background: cur.image ? '#1A1A1A' : `linear-gradient(135deg, ${cur.couleur}, ${cur.couleur}bb)`,
+          background: '#1A1A1A',
         }}>
-          {cur.image ? (
-            <img src={`/uploads/${cur.image}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          {(cur.image || cur.image_local) ? (
+            <>
+              <img
+                src={cur.image ? `/uploads/${cur.image}` : cur.image_local}
+                alt=""
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
+              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '30px 18px 30px', background: 'linear-gradient(transparent, rgba(0,0,0,0.65))' }}>
+                <p style={{ fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 2 }}>{cur.titre}</p>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>{cur.contenu}</p>
+              </div>
+            </>
           ) : (
             <>
               <div style={{
                 position: 'absolute', inset: 0,
-                background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 2px, transparent 2px, transparent 14px)',
+                background: `linear-gradient(135deg, ${cur.couleur}, ${cur.couleur}bb)`,
               }} />
               <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '40px 18px 16px', background: 'linear-gradient(transparent, rgba(0,0,0,0.6))' }}>
                 <p style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 4 }}>{cur.titre}</p>
