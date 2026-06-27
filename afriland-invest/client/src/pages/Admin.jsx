@@ -214,6 +214,15 @@ export default function Admin() {
   const [planModal, setPlanModal] = useState(null);
   const [planForm, setPlanForm] = useState({ nom: '', prix: '', duree_jours: '', rendement_journalier: '' });
 
+  const [actionMenu, setActionMenu] = useState(null);
+  const [balanceModal, setBalanceModal] = useState(null);
+  const [balanceMode, setBalanceMode] = useState('add');
+  const [balanceAmount, setBalanceAmount] = useState('');
+  const [infoModal, setInfoModal] = useState(null);
+  const [infoForm, setInfoForm] = useState({ nom: '', telephone: '', pays: '' });
+  const [newPassword, setNewPassword] = useState('');
+  const [infoTab, setInfoTab] = useState('info');
+
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -275,6 +284,72 @@ export default function Admin() {
     if (!creditAmount || isNaN(creditAmount)) return toast.error('Montant invalide');
     try { await api.put(`/admin/users/${creditModal}/credit`, { montant: parseFloat(creditAmount) }); toast.success('Crédit effectué ✅'); setCreditModal(null); setCreditAmount(''); loadAll(); }
     catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
+  };
+
+  const openActionMenu = (u) => setActionMenu(u);
+  const openBalanceModal = (u) => { setBalanceModal(u); setBalanceMode('add'); setBalanceAmount(''); setActionMenu(null); };
+  const openInfoModal = (u) => { setInfoModal(u); setInfoForm({ nom: u.nom || '', telephone: u.telephone || '', pays: u.pays || '' }); setNewPassword(''); setInfoTab('info'); setActionMenu(null); };
+
+  const handleBalance = async () => {
+    if (!balanceAmount || isNaN(balanceAmount)) return toast.error('Montant invalide');
+    try {
+      await api.put(`/admin/users/${balanceModal.id}/balance`, { mode: balanceMode, montant: parseFloat(balanceAmount) });
+      const labels = { add: 'Solde augmenté ✅', subtract: 'Solde diminué ✅', set: 'Solde défini ✅' };
+      toast.success(labels[balanceMode]);
+      setBalanceModal(null); setBalanceAmount(''); loadAll();
+    } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
+  };
+
+  const handleInfoSave = async () => {
+    try {
+      await api.put(`/admin/users/${infoModal.id}/info`, infoForm);
+      toast.success('Informations mises à jour ✅'); loadAll();
+    } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
+  };
+
+  const handleResetPassword = async () => {
+    if (!newPassword || newPassword.length < 4) return toast.error('Mot de passe trop court (min 4 caractères)');
+    try {
+      await api.put(`/admin/users/${infoModal.id}/password`, { new_password: newPassword });
+      toast.success('Mot de passe réinitialisé ✅'); setNewPassword('');
+    } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
+  };
+
+  const handleResetTxPassword = async () => {
+    if (!confirm('Réinitialiser le mot de passe de transaction de cet utilisateur ?')) return;
+    try {
+      await api.delete(`/admin/users/${infoModal.id}/transaction-password`);
+      toast.success('Mot de passe de transaction réinitialisé ✅');
+    } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
+  };
+
+  const handleBan = async (u) => {
+    const action = u.banni ? 'débannir' : 'bannir';
+    if (!confirm(`Voulez-vous ${action} ${u.nom} ?`)) return;
+    setActionMenu(null);
+    try {
+      const res = await api.put(`/admin/users/${u.id}/ban`);
+      toast.success(res.data.message + ' ✅'); loadAll();
+    } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
+  };
+
+  const handleBlockWithdrawal = async (u) => {
+    const action = u.retrait_bloque ? 'débloquer le retrait de' : 'bloquer le retrait de';
+    if (!confirm(`Voulez-vous ${action} ${u.nom} ?`)) return;
+    setActionMenu(null);
+    try {
+      const res = await api.put(`/admin/users/${u.id}/block-withdrawal`);
+      toast.success(res.data.message + ' ✅'); loadAll();
+    } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
+  };
+
+  const handleDeleteUser = async (u) => {
+    if (!confirm(`⚠️ Supprimer définitivement ${u.nom} ? Cette action est irréversible.`)) return;
+    setActionMenu(null);
+    try {
+      await api.delete(`/admin/users/${u.id}`);
+      toast.success('Utilisateur supprimé'); loadAll();
+    } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
   };
 
   const saveSettings = async () => {
@@ -564,6 +639,152 @@ export default function Admin() {
           </div>
         )}
 
+        {/* ── Action Menu (bottom sheet) ── */}
+        {actionMenu && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={() => setActionMenu(null)}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 430, padding: '8px 0 28px', boxShadow: '0 -4px 32px rgba(0,0,0,0.15)' }}>
+              <div style={{ width: 40, height: 4, borderRadius: 2, background: '#E0E0E0', margin: '10px auto 16px' }} />
+              <div style={{ padding: '0 20px 14px', borderBottom: '1px solid #F0F0F0', marginBottom: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 42, height: 42, borderRadius: 12, background: actionMenu.banni ? '#FF3B3020' : 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ color: '#fff', fontWeight: 800, fontSize: 18 }}>{(actionMenu.nom || '?')[0].toUpperCase()}</span>
+                  </div>
+                  <div>
+                    <p style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-dark)' }}>{actionMenu.nom}</p>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{actionMenu.telephone}</p>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--primary)' }}>{fmt(actionMenu.solde || 0)} FCFA</p>
+                  </div>
+                </div>
+              </div>
+              {[
+                { icon: 'fa-coins', color: '#FF9500', label: 'Modifier le solde', action: () => openBalanceModal(actionMenu) },
+                { icon: 'fa-user-edit', color: '#007AFF', label: 'Informations & Sécurité', action: () => openInfoModal(actionMenu) },
+                { icon: actionMenu.banni ? 'fa-user-check' : 'fa-ban', color: actionMenu.banni ? '#34C759' : '#FF3B30', label: actionMenu.banni ? 'Débannir l\'utilisateur' : 'Bannir l\'utilisateur', action: () => handleBan(actionMenu) },
+                { icon: actionMenu.retrait_bloque ? 'fa-lock-open' : 'fa-lock', color: actionMenu.retrait_bloque ? '#34C759' : '#5856D6', label: actionMenu.retrait_bloque ? 'Débloquer le retrait' : 'Bloquer le retrait', action: () => handleBlockWithdrawal(actionMenu) },
+                { icon: 'fa-trash-alt', color: '#FF3B30', label: 'Supprimer l\'utilisateur', action: () => handleDeleteUser(actionMenu) },
+              ].map((item, i) => (
+                <button key={i} onClick={item.action} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '13px 20px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#FAFAFA'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: item.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <i className={`fas ${item.icon}`} style={{ color: item.color, fontSize: 15 }} />
+                  </div>
+                  <span style={{ fontWeight: 600, fontSize: 14, color: i === 4 ? '#FF3B30' : 'var(--text-dark)' }}>{item.label}</span>
+                  <i className="fas fa-chevron-right" style={{ marginLeft: 'auto', color: '#CCC', fontSize: 11 }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Balance Modal ── */}
+        {balanceModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ background: '#fff', borderRadius: 22, padding: 24, width: '100%', maxWidth: 360 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: '#FF950018', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className="fas fa-coins" style={{ color: '#FF9500', fontSize: 16 }} />
+                </div>
+                <div>
+                  <h3 style={{ fontWeight: 800, fontSize: 16 }}>Modifier le solde</h3>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{balanceModal.nom} · {fmt(balanceModal.solde || 0)} FCFA</p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 18, background: '#F5F5F5', borderRadius: 12, padding: 4 }}>
+                {[{ key: 'add', label: '+ Ajouter', color: '#34C759' }, { key: 'subtract', label: '− Diminuer', color: '#FF3B30' }, { key: 'set', label: '= Définir', color: '#007AFF' }].map(m => (
+                  <button key={m.key} onClick={() => setBalanceMode(m.key)} style={{ flex: 1, padding: '8px 4px', borderRadius: 9, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 11, background: balanceMode === m.key ? '#fff' : 'transparent', color: balanceMode === m.key ? m.color : '#999', boxShadow: balanceMode === m.key ? '0 1px 4px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.15s' }}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
+                {balanceMode === 'add' && 'Ajouter ce montant au solde actuel'}
+                {balanceMode === 'subtract' && 'Retirer ce montant du solde actuel'}
+                {balanceMode === 'set' && 'Définir le solde exactement à ce montant'}
+              </div>
+              <div className="input-group" style={{ marginBottom: 18 }}>
+                <label>Montant (FCFA)</label>
+                <input type="number" placeholder="Ex: 5000" value={balanceAmount} onChange={e => setBalanceAmount(e.target.value)} autoFocus />
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setBalanceModal(null)} style={{ flex: 1, padding: '12px', borderRadius: 50, border: '1px solid var(--border-color)', background: 'transparent', fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
+                <button onClick={handleBalance} className="btn btn-primary" style={{ flex: 1, padding: '12px' }}>Confirmer</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Info Modal ── */}
+        {infoModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+            <div style={{ background: '#fff', borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 430, padding: '8px 0 28px', maxHeight: '90vh', overflowY: 'auto' }}>
+              <div style={{ width: 40, height: 4, borderRadius: 2, background: '#E0E0E0', margin: '10px auto 0' }} />
+              <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #F0F0F0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: '#007AFF18', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <i className="fas fa-user-edit" style={{ color: '#007AFF', fontSize: 15 }} />
+                    </div>
+                    <div>
+                      <p style={{ fontWeight: 800, fontSize: 15 }}>Gestion — {infoModal.nom}</p>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Informations & Sécurité</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setInfoModal(null)} style={{ width: 32, height: 32, borderRadius: 50, border: 'none', background: '#F0F0F0', cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>✕</button>
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 14, background: '#F5F5F5', borderRadius: 12, padding: 4 }}>
+                  {[{ key: 'info', label: 'Infos', icon: 'fa-user' }, { key: 'security', label: 'Sécurité', icon: 'fa-shield-alt' }].map(t => (
+                    <button key={t.key} onClick={() => setInfoTab(t.key)} style={{ flex: 1, padding: '9px', borderRadius: 9, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 12, background: infoTab === t.key ? '#fff' : 'transparent', color: infoTab === t.key ? '#007AFF' : '#999', boxShadow: infoTab === t.key ? '0 1px 4px rgba(0,0,0,0.1)' : 'none' }}>
+                      <i className={`fas ${t.icon}`} style={{ marginRight: 5 }} />{t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ padding: '18px 20px' }}>
+                {infoTab === 'info' && (
+                  <>
+                    {[{ key: 'nom', label: 'Nom complet', placeholder: 'Ex: Jean Dupont' }, { key: 'telephone', label: 'Téléphone', placeholder: '+237600000000' }, { key: 'pays', label: 'Pays', placeholder: 'Cameroun' }].map(f => (
+                      <div className="input-group" key={f.key} style={{ marginBottom: 12 }}>
+                        <label>{f.label}</label>
+                        <input type="text" placeholder={f.placeholder} value={infoForm[f.key]} onChange={e => setInfoForm(p => ({ ...p, [f.key]: e.target.value }))} />
+                      </div>
+                    ))}
+                    <button onClick={handleInfoSave} className="btn btn-primary" style={{ width: '100%', padding: '13px', borderRadius: 50, marginTop: 4 }}>
+                      <i className="fas fa-save" style={{ marginRight: 8 }} />Enregistrer les informations
+                    </button>
+                  </>
+                )}
+                {infoTab === 'security' && (
+                  <>
+                    <div style={{ background: '#F8F9FA', borderRadius: 14, padding: 16, marginBottom: 16 }}>
+                      <p style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                        <i className="fas fa-key" style={{ color: '#FF9500', marginRight: 8 }} />Nouveau mot de passe
+                      </p>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Définissez un nouveau mot de passe de connexion pour l'utilisateur</p>
+                      <div className="input-group" style={{ marginBottom: 10 }}>
+                        <label>Nouveau mot de passe</label>
+                        <input type="text" placeholder="Min. 4 caractères" value={newPassword} onChange={e => setNewPassword(e.target.value)} />
+                      </div>
+                      <button onClick={handleResetPassword} style={{ width: '100%', padding: '11px', borderRadius: 50, border: 'none', background: '#FF9500', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                        <i className="fas fa-key" style={{ marginRight: 8 }} />Définir le mot de passe
+                      </button>
+                    </div>
+                    <div style={{ background: '#FFF3F3', borderRadius: 14, padding: 16, border: '1px solid #FF3B3020' }}>
+                      <p style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, color: '#FF3B30' }}>
+                        <i className="fas fa-shield-alt" style={{ marginRight: 8 }} />Mot de passe de transaction
+                      </p>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Supprime le mot de passe de transaction actuel. L'utilisateur devra en créer un nouveau.</p>
+                      <button onClick={handleResetTxPassword} style={{ width: '100%', padding: '11px', borderRadius: 50, border: 'none', background: '#FF3B30', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                        <i className="fas fa-rotate-left" style={{ marginRight: 8 }} />Réinitialiser le MDP transaction
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {planModal && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
             <div style={{ background: '#fff', borderRadius: 20, padding: 24, width: '100%', maxWidth: 400 }}>
@@ -803,21 +1024,28 @@ export default function Admin() {
           <div>
             <SectionHeader icon="fa-users" title={`Utilisateurs (${users.length})`} />
             {paginated(users, 'users').map(u => (
-              <div key={u.id} style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', marginBottom: 10, boxShadow: 'var(--shadow-card)' }}>
+              <div key={u.id} style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', marginBottom: 10, boxShadow: 'var(--shadow-card)', border: u.banni ? '1.5px solid #FF3B3040' : u.retrait_bloque ? '1.5px solid #5856D640' : 'none', opacity: u.banni ? 0.8 : 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 13, background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 13, background: u.banni ? '#FF3B30' : 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, position: 'relative' }}>
                     <span style={{ color: '#fff', fontWeight: 800, fontSize: 18 }}>{(u.nom || '?')[0].toUpperCase()}</span>
+                    {u.banni && <div style={{ position: 'absolute', bottom: -3, right: -3, width: 16, height: 16, borderRadius: '50%', background: '#FF3B30', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="fas fa-ban" style={{ color: '#fff', fontSize: 7 }} /></div>}
+                    {!u.banni && u.retrait_bloque && <div style={{ position: 'absolute', bottom: -3, right: -3, width: 16, height: 16, borderRadius: '50%', background: '#5856D6', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="fas fa-lock" style={{ color: '#fff', fontSize: 7 }} /></div>}
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                       <p style={{ fontWeight: 700, fontSize: 14 }}>{u.nom}</p>
-                      {u.role === 'admin' && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#007AFF20', color: '#007AFF', fontWeight: 700 }}>Admin</span>}
+                      {u.role === 'admin' && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 8, background: '#007AFF20', color: '#007AFF', fontWeight: 700 }}>Admin</span>}
+                      {u.banni && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 8, background: '#FF3B3020', color: '#FF3B30', fontWeight: 700 }}>Banni</span>}
+                      {u.retrait_bloque && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 8, background: '#5856D620', color: '#5856D6', fontWeight: 700 }}>Retrait bloqué</span>}
                     </div>
-                    <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{u.telephone} · {u.pays}</p>
-                    <p style={{ color: 'var(--primary)', fontWeight: 700, fontSize: 13, marginTop: 2 }}>{fmt(u.solde || 0)} FCFA</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 1 }}>{u.telephone} · {u.pays}</p>
+                    <p style={{ color: 'var(--primary)', fontWeight: 700, fontSize: 13, marginTop: 1 }}>{fmt(u.solde || 0)} FCFA</p>
                   </div>
-                  <button onClick={() => { setCreditModal(u.id); setCreditAmount(''); }} style={{ padding: '8px 14px', borderRadius: 10, border: 'none', background: 'var(--primary)', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 12, flexShrink: 0 }}>
-                    <i className="fas fa-plus" /> Crédit
+                  <button
+                    onClick={() => openActionMenu(u)}
+                    style={{ width: 38, height: 38, borderRadius: 10, border: 'none', background: 'var(--primary)', color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, letterSpacing: 1 }}
+                  >
+                    ⋮
                   </button>
                 </div>
               </div>

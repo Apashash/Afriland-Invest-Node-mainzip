@@ -31,6 +31,39 @@ router.post('/request', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Les retraits sont disponibles du lundi au samedi de 9h à 19h GMT' });
     }
 
+    const userCheck = await query('SELECT banni, retrait_bloque, retrait_bloque_vip FROM utilisateurs WHERE id = $1', [userId]);
+    const u = userCheck.rows[0];
+    if (u?.banni) return res.status(403).json({ error: 'Votre compte est banni. Contactez le support.' });
+
+    if (u?.retrait_bloque) {
+      let unblocked = false;
+      const vipRes = await query('SELECT niveau FROM vip WHERE user_id = $1', [userId]);
+      const currentVip = vipRes.rows[0]?.niveau || 0;
+      if (currentVip > (u.retrait_bloque_vip || 0)) {
+        await query('UPDATE utilisateurs SET retrait_bloque = false, retrait_bloque_vip = 0 WHERE id = $1', [userId]);
+        unblocked = true;
+      }
+      if (!unblocked) {
+        const fRes = await query('SELECT id FROM utilisateurs WHERE parrain_id = $1', [userId]);
+        const fIds = fRes.rows.map(r => r.id);
+        if (fIds.length > 0) {
+          const eligibleRes = await query(
+            `SELECT COUNT(DISTINCT c.user_id) FROM commandes c
+             JOIN depots d ON d.user_id = c.user_id
+             WHERE c.user_id = ANY($1) AND d.statut = 'valide'`,
+            [fIds]
+          );
+          if (parseInt(eligibleRes.rows[0].count) >= 1) {
+            await query('UPDATE utilisateurs SET retrait_bloque = false, retrait_bloque_vip = 0 WHERE id = $1', [userId]);
+            unblocked = true;
+          }
+        }
+      }
+      if (!unblocked) {
+        return res.status(403).json({ error: 'Votre retrait est bloqué. Pour le débloquer, invitez au moins une personne à recharger et souscrire à un plan, ou passez à un niveau VIP supérieur.' });
+      }
+    }
+
     const tpRes = await query('SELECT password FROM transaction_passwords WHERE user_id = $1', [userId]);
     if (!tpRes.rows[0]) return res.status(400).json({ error: 'Veuillez configurer votre mot de passe de transaction' });
     if (tpRes.rows[0].password !== transaction_password) return res.status(400).json({ error: 'Mot de passe de transaction incorrect' });

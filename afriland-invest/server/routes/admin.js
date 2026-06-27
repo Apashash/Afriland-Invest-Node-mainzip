@@ -43,9 +43,11 @@ router.get('/stats', adminMiddleware, async (req, res) => {
 router.get('/users', adminMiddleware, async (req, res) => {
   try {
     const { rows } = await query(
-      `SELECT u.id, u.nom, u.telephone, u.pays, u.date_inscription, u.role, s.solde
+      `SELECT u.id, u.nom, u.telephone, u.pays, u.date_inscription, u.role,
+              u.banni, u.retrait_bloque, u.retrait_bloque_vip,
+              COALESCE(s.solde, 0) AS solde
        FROM utilisateurs u LEFT JOIN soldes s ON s.user_id = u.id
-       ORDER BY u.date_inscription DESC LIMIT 100`
+       ORDER BY u.date_inscription DESC LIMIT 200`
     );
     res.json({ users: rows });
   } catch (err) {
@@ -74,6 +76,144 @@ router.put('/users/:id/credit', adminMiddleware, async (req, res) => {
     });
 
     res.json({ success: true, message: 'Crédit effectué' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+router.put('/users/:id/balance', adminMiddleware, async (req, res) => {
+  try {
+    const { mode, montant } = req.body;
+    const userId = parseInt(req.params.id);
+    if (!montant || isNaN(montant)) return res.status(400).json({ error: 'Montant invalide' });
+    const montantNum = parseFloat(montant);
+    if (!['add', 'subtract', 'set'].includes(mode)) return res.status(400).json({ error: 'Mode invalide' });
+
+    await withTransaction(async (client) => {
+      if (mode === 'set') {
+        if (montantNum < 0) throw new Error('Montant invalide');
+        await client.query(
+          `INSERT INTO soldes (user_id, solde, date_maj) VALUES ($1, $2, NOW())
+           ON CONFLICT (user_id) DO UPDATE SET solde = $2, date_maj = NOW()`,
+          [userId, montantNum]
+        );
+        await client.query(
+          "INSERT INTO historique_revenus (user_id, montant, type) VALUES ($1, $2, 'credit_admin')",
+          [userId, montantNum]
+        );
+      } else if (mode === 'add') {
+        if (montantNum <= 0) throw new Error('Montant invalide');
+        await client.query(
+          `INSERT INTO soldes (user_id, solde, date_maj) VALUES ($1, $2, NOW())
+           ON CONFLICT (user_id) DO UPDATE SET solde = soldes.solde + $2, date_maj = NOW()`,
+          [userId, montantNum]
+        );
+        await client.query(
+          "INSERT INTO historique_revenus (user_id, montant, type) VALUES ($1, $2, 'credit_admin')",
+          [userId, montantNum]
+        );
+      } else {
+        if (montantNum <= 0) throw new Error('Montant invalide');
+        const soldeRes = await client.query('SELECT solde FROM soldes WHERE user_id = $1', [userId]);
+        const current = parseFloat(soldeRes.rows[0]?.solde || 0);
+        const newSolde = Math.max(0, current - montantNum);
+        await client.query(
+          `INSERT INTO soldes (user_id, solde, date_maj) VALUES ($1, $2, NOW())
+           ON CONFLICT (user_id) DO UPDATE SET solde = $2, date_maj = NOW()`,
+          [userId, newSolde]
+        );
+      }
+    });
+
+    res.json({ success: true, message: 'Solde modifié' });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Erreur serveur' });
+  }
+});
+
+router.put('/users/:id/info', adminMiddleware, async (req, res) => {
+  try {
+    const { nom, telephone, pays } = req.body;
+    const userId = parseInt(req.params.id);
+    const updates = [];
+    const vals = [];
+    let idx = 1;
+    if (nom) { updates.push(`nom = $${idx++}`); vals.push(nom.trim()); }
+    if (telephone) { updates.push(`telephone = $${idx++}`); vals.push(telephone.trim()); }
+    if (pays) { updates.push(`pays = $${idx++}`); vals.push(pays.trim()); }
+    if (updates.length === 0) return res.status(400).json({ error: 'Aucune donnée à modifier' });
+    vals.push(userId);
+    await query(`UPDATE utilisateurs SET ${updates.join(', ')} WHERE id = $${idx}`, vals);
+    res.json({ success: true, message: 'Informations mises à jour' });
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'Ce numéro est déjà utilisé' });
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+router.put('/users/:id/password', adminMiddleware, async (req, res) => {
+  try {
+    const { new_password } = req.body;
+    const userId = parseInt(req.params.id);
+    if (!new_password || new_password.length < 4) return res.status(400).json({ error: 'Mot de passe trop court (min 4 caractères)' });
+    const bcrypt = require('bcryptjs');
+    const hashed = await bcrypt.hash(new_password, 10);
+    await query('UPDATE utilisateurs SET mot_de_passe = $1 WHERE id = $2', [hashed, userId]);
+    res.json({ success: true, message: 'Mot de passe réinitialisé' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+router.delete('/users/:id/transaction-password', adminMiddleware, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    await query('DELETE FROM transaction_passwords WHERE user_id = $1', [userId]);
+    res.json({ success: true, message: 'Mot de passe de transaction réinitialisé' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+router.put('/users/:id/ban', adminMiddleware, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const { rows } = await query('SELECT banni FROM utilisateurs WHERE id = $1', [userId]);
+    if (!rows[0]) return res.status(404).json({ error: 'Utilisateur introuvable' });
+    const newBan = !rows[0].banni;
+    await query('UPDATE utilisateurs SET banni = $1 WHERE id = $2', [newBan, userId]);
+    res.json({ success: true, banni: newBan, message: newBan ? 'Utilisateur banni' : 'Utilisateur débanni' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+router.put('/users/:id/block-withdrawal', adminMiddleware, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const { rows } = await query('SELECT retrait_bloque FROM utilisateurs WHERE id = $1', [userId]);
+    if (!rows[0]) return res.status(404).json({ error: 'Utilisateur introuvable' });
+    const newBlock = !rows[0].retrait_bloque;
+    let vipNiveau = 0;
+    if (newBlock) {
+      const vipRes = await query('SELECT niveau FROM vip WHERE user_id = $1', [userId]);
+      vipNiveau = vipRes.rows[0]?.niveau || 0;
+    }
+    await query(
+      'UPDATE utilisateurs SET retrait_bloque = $1, retrait_bloque_vip = $2 WHERE id = $3',
+      [newBlock, newBlock ? vipNiveau : 0, userId]
+    );
+    res.json({ success: true, retrait_bloque: newBlock, message: newBlock ? 'Retrait bloqué' : 'Retrait débloqué' });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+router.delete('/users/:id', adminMiddleware, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    await query('DELETE FROM utilisateurs WHERE id = $1', [userId]);
+    res.json({ success: true, message: 'Utilisateur supprimé' });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
