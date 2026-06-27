@@ -34,6 +34,7 @@ function mapDepot(d) {
     sens: '+',
     statut: d.statut,
     date: d.date_depot,
+    reference: d.reference || null,
     details: { pays: d.pays, operateur: d.operateur, numero_payeur: d.numero_payeur },
   };
 }
@@ -47,6 +48,7 @@ function mapRetrait(r) {
     sens: '-',
     statut: r.statut,
     date: r.date_demande,
+    reference: r.reference || null,
     details: { methode: r.methode, numero_compte: r.numero_compte },
   };
 }

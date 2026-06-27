@@ -140,7 +140,20 @@ export default function Transactions() {
             </div>
 
             <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 14 }}>
-              <ReceiptRow label="Référence" value={receipt.id} />
+              {receipt.reference ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Référence</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-primary)' }}>{receipt.reference}</span>
+                    <button onClick={() => { navigator.clipboard.writeText(receipt.reference); toast.success('Référence copiée !'); }}
+                      style={{ background: 'var(--primary)', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', color: '#fff', fontSize: 10, fontWeight: 700 }}>
+                      Copier
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <ReceiptRow label="Référence" value={receipt.id} />
+              )}
               <ReceiptRow label="Date" value={fmtDate(receipt.date)} />
               {receipt.details?.pays && <ReceiptRow label="Pays" value={receipt.details.pays} />}
               {receipt.details?.operateur && <ReceiptRow label="Opérateur" value={receipt.details.operateur} />}

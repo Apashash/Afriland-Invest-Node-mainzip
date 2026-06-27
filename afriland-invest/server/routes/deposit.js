@@ -56,9 +56,8 @@ router.post('/request', authMiddleware, upload.single('preuve'), async (req, res
 
     const preuve_path = req.file ? req.file.filename : null;
 
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    const rand = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-    const reference = `payfastbdk${rand}`;
+    const rand = Array.from({ length: 10 }, () => Math.floor(Math.random() * 10)).join('');
+    const reference = `payfast${rand}`;
 
     const { rows } = await query(
       `INSERT INTO depots (user_id, montant, pays, operateur, numero_payeur, preuve_paiement, statut, reference)

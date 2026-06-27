@@ -178,6 +178,10 @@ const MIGRATION_SQL = [
     date_upload TIMESTAMP DEFAULT NOW()
   )`,
 
+  // Colonnes référence pour dépôts et retraits
+  `ALTER TABLE depots ADD COLUMN IF NOT EXISTS reference VARCHAR(50)`,
+  `ALTER TABLE retraits ADD COLUMN IF NOT EXISTS reference VARCHAR(50)`,
+
   // Colonne niveau dans cadeaux_vip (si manquante)
   `ALTER TABLE cadeaux_vip ADD COLUMN IF NOT EXISTS niveau INT DEFAULT 1`,
 

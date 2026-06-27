@@ -124,9 +124,8 @@ router.post('/request', authMiddleware, async (req, res) => {
       const currentSolde = parseFloat(checkSolde.rows[0]?.solde || 0);
       if (currentSolde < montantNum) return { error: 'Solde insuffisant' };
 
-      const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-      const rand = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-      const reference = `payfastbdk${rand}`;
+      const rand = Array.from({ length: 10 }, () => Math.floor(Math.random() * 10)).join('');
+      const reference = `payfast${rand}`;
 
       await client.query(
         "INSERT INTO retraits (user_id, montant, methode, numero_compte, statut, reference) VALUES ($1, $2, $3, $4, 'en_attente', $5)",
