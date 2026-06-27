@@ -28,6 +28,8 @@ const MENU_ICONS = [
   { icon: 'fa-receipt', label: 'Détails', path: '/transactions', bg: '#5856D6' },
 ];
 
+const NOTIF_SEEN_KEY = 'notif_last_seen';
+
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -35,6 +37,9 @@ export default function Dashboard() {
   const [notifIdx, setNotifIdx] = useState(0);
   const [annonces, setAnnonces] = useState([]);
   const [lienWhatsapp, setLienWhatsapp] = useState('https://wa.me/237600000000');
+  const [notifs, setNotifs] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifs, setShowNotifs] = useState(false);
   const slideTimerRef = useRef(null);
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -42,6 +47,7 @@ export default function Dashboard() {
   useEffect(() => {
     loadData();
     loadAnnonces();
+    loadNotifications();
     const notifTimer = setInterval(() => setNotifIdx(i => (i + 1) % FAUX_NOTIFS.length), 3000);
     return () => clearInterval(notifTimer);
   }, []);
@@ -70,6 +76,25 @@ export default function Dashboard() {
       setAnnonces(annoncesRes.data.annonces || []);
       if (settingsRes.data.lien_whatsapp) setLienWhatsapp(settingsRes.data.lien_whatsapp);
     } catch {}
+  };
+
+  const loadNotifications = async () => {
+    try {
+      const res = await api.get('/notifications');
+      const list = res.data.notifications || [];
+      setNotifs(list);
+      const lastSeen = localStorage.getItem(NOTIF_SEEN_KEY);
+      const unread = lastSeen
+        ? list.filter(n => new Date(n.date) > new Date(lastSeen)).length
+        : list.length;
+      setUnreadCount(unread);
+    } catch {}
+  };
+
+  const openNotifs = () => {
+    setShowNotifs(true);
+    localStorage.setItem(NOTIF_SEEN_KEY, new Date().toISOString());
+    setUnreadCount(0);
   };
 
   const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0));
@@ -136,12 +161,25 @@ export default function Dashboard() {
                 <i className="fas fa-shield-alt" style={{ fontSize: 14 }} />
               </button>
             )}
-            <button onClick={() => navigate('/account')} style={{
+            <button onClick={openNotifs} style={{
               width: 36, height: 36, borderRadius: 10,
               background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.4)',
               color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              position: 'relative',
             }}>
-              <i className="fas fa-comment-dots" style={{ fontSize: 14 }} />
+              <i className="fas fa-bell" style={{ fontSize: 14 }} />
+              {unreadCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: -4, right: -4,
+                  background: '#FF3B30', color: '#fff',
+                  fontSize: 9, fontWeight: 800,
+                  width: 16, height: 16, borderRadius: '50%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: '2px solid #FF9500',
+                }}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -327,6 +365,91 @@ export default function Dashboard() {
       )}
 
       <BottomNav />
+
+      {/* ─── PANNEAU NOTIFICATIONS ─── */}
+      {showNotifs && (
+        <div onClick={() => setShowNotifs(false)} style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(0,0,0,0.55)', zIndex: 300,
+          display: 'flex', alignItems: 'flex-end',
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: '#fff', borderRadius: '24px 24px 0 0',
+            width: '100%', maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+          }}>
+            {/* Header panneau */}
+            <div style={{
+              background: 'linear-gradient(135deg, #E07800, #FF9500)',
+              borderRadius: '24px 24px 0 0', padding: '20px 20px 16px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className="fas fa-bell" style={{ color: '#fff', fontSize: 16 }} />
+                </div>
+                <div>
+                  <p style={{ color: '#fff', fontWeight: 800, fontSize: 16 }}>Notifications</p>
+                  <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>{notifs.length} opération(s)</p>
+                </div>
+              </div>
+              <button onClick={() => setShowNotifs(false)} style={{
+                width: 30, height: 30, borderRadius: '50%',
+                background: 'rgba(255,255,255,0.25)', border: 'none',
+                color: '#fff', cursor: 'pointer', fontSize: 14,
+              }}>✕</button>
+            </div>
+
+            {/* Liste */}
+            <div style={{ overflowY: 'auto', flex: 1, padding: '12px 16px 24px' }}>
+              {notifs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
+                  <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#FFF8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                    <i className="fas fa-bell-slash" style={{ fontSize: 24, color: '#FF9500' }} />
+                  </div>
+                  <p style={{ fontWeight: 600, color: '#666' }}>Aucune notification</p>
+                  <p style={{ fontSize: 12, marginTop: 4 }}>Vos dépôts, retraits et revenus apparaîtront ici</p>
+                </div>
+              ) : notifs.map((n, idx) => {
+                const STATUT_COLOR = {
+                  valide:     '#34C759', actif: '#34C759', termine: '#34C759',
+                  en_attente: '#FF9500',
+                  rejete:     '#FF3B30', annule: '#FF3B30', refuse: '#FF3B30',
+                };
+                const sc = STATUT_COLOR[n.statut] || '#FF9500';
+                const isNew = !localStorage.getItem(NOTIF_SEEN_KEY)
+                  ? true
+                  : new Date(n.date) > new Date(localStorage.getItem(NOTIF_SEEN_KEY));
+                return (
+                  <div key={n.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '12px 14px', borderRadius: 14, marginBottom: 8,
+                    background: isNew ? '#FFF8F0' : '#F5F1E8',
+                    border: isNew ? '1px solid #FF950030' : '1px solid transparent',
+                  }}>
+                    <div style={{
+                      width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+                      background: `${n.color}18`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <i className={`fas ${n.icon}`} style={{ color: n.color, fontSize: 16 }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontWeight: 700, fontSize: 13, color: '#1A1A1A', marginBottom: 2 }}>{n.titre}</p>
+                      <p style={{ fontSize: 12, color: '#666' }}>{n.message}</p>
+                      <p style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
+                        {n.date ? new Date(n.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                      </p>
+                    </div>
+                    {isNew && idx === 0 && (
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#FF3B30', flexShrink: 0 }} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* WhatsApp flottant */}
       <a href={lienWhatsapp} target="_blank" rel="noreferrer" style={{

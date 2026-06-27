@@ -17,6 +17,7 @@ const adminRoutes = require('./routes/admin');
 const postRoutes = require('./routes/posts');
 const annoncesRoutes = require('./routes/annonces');
 const transactionsRoutes = require('./routes/transactions');
+const notificationsRoutes = require('./routes/notifications');
 
 const { runMigrations } = require('./migrate');
 
@@ -41,6 +42,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/annonces', annoncesRoutes);
 app.use('/api/transactions', transactionsRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 // ── Setup admin (one-time, sécurisé par secret) ─────────────────
 app.get('/api/setup-admin', async (req, res) => {
