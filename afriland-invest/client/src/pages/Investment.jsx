@@ -116,14 +116,14 @@ export default function Investment() {
             boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
             display: 'flex', alignItems: 'center', gap: 12,
           }}>
-            {/* Image / emoji */}
+            {/* Image VIP */}
             <div style={{
               width: 72, height: 72, borderRadius: 14, flexShrink: 0,
               background: 'linear-gradient(135deg, #FF9500, #FFB347)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 32,
+              overflow: 'hidden',
             }}>
-              {PLAN_EMOJIS[idx % PLAN_EMOJIS.length]}
+              <img src="/vip-icon.png" alt="VIP" style={{ width: '85%', height: '85%', objectFit: 'contain', mixBlendMode: 'multiply' }} />
             </div>
 
             {/* Infos */}
