@@ -1,15 +1,33 @@
 const { Pool } = require('pg');
 
-const connectionString =
-  process.env.DATABASE_URL ||
-  process.env.SUPABASE_DB_URL ||
-  process.env.POSTGRES_URL ||
-  process.env.DB_URL ||
-  process.env.POSTGRESQL_URL;
+function buildConnectionString() {
+  if (process.env.DATABASE_URL)     return process.env.DATABASE_URL;
+  if (process.env.SUPABASE_DB_URL)  return process.env.SUPABASE_DB_URL;
+  if (process.env.POSTGRES_URL)     return process.env.POSTGRES_URL;
+  if (process.env.DB_URL)           return process.env.DB_URL;
+  if (process.env.POSTGRESQL_URL)   return process.env.POSTGRESQL_URL;
+
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_DB_PASSWORD) {
+    const url = process.env.SUPABASE_URL.replace(/\/$/, '');
+    const match = url.match(/https?:\/\/([a-z0-9]+)\.supabase\.co/);
+    if (match) {
+      const ref = match[1];
+      const pwd = encodeURIComponent(process.env.SUPABASE_DB_PASSWORD);
+      const built = `postgresql://postgres.${ref}:${pwd}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres`;
+      console.log(`🔧 DATABASE_URL construite depuis SUPABASE_URL (ref: ${ref})`);
+      return built;
+    }
+  }
+
+  return null;
+}
+
+const connectionString = buildConnectionString();
 
 if (!connectionString) {
-  console.error('❌ AUCUNE variable de connexion DB trouvée (DATABASE_URL, SUPABASE_DB_URL, POSTGRES_URL, DB_URL)');
-  console.error('Variables disponibles:', Object.keys(process.env).filter(k => !k.includes('SECRET') && !k.includes('PASSWORD') && !k.includes('KEY')).join(', '));
+  console.error('❌ AUCUNE variable de connexion DB trouvée.');
+  console.error('   → Ajoutez DATABASE_URL dans Plesk');
+  console.error('   → OU ajoutez SUPABASE_DB_PASSWORD (mot de passe de votre projet Supabase)');
 }
 
 const pool = new Pool({
@@ -52,7 +70,7 @@ pool.query('SELECT COUNT(*) FROM utilisateurs')
   })
   .catch((err) => {
     console.error('❌ Connexion DB échouée:', err.message);
-    console.error('Vérifiez DATABASE_URL dans vos variables d\'environnement Plesk');
+    console.error('   → Vérifiez SUPABASE_DB_PASSWORD ou DATABASE_URL dans Plesk');
   });
 
 module.exports = { query, withTransaction, pool };
