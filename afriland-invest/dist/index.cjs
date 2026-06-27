@@ -244,25 +244,38 @@ var require_user = __commonJS({
     router.get("/dashboard", authMiddleware, async (req, res) => {
       try {
         const userId = req.user.id;
+        const safeQuery = async (sql, params, fallback) => {
+          try {
+            return await query(sql, params);
+          } catch (e) {
+            console.error(`[dashboard] query failed: ${e.message}
+SQL: ${sql}`);
+            return fallback;
+          }
+        };
         const [userRes, soldeRes, vipRes, filleulsRes, revenusRes] = await Promise.all([
-          query("SELECT id,nom,telephone,pays,code_parrainage,lien_parrainage,date_inscription FROM utilisateurs WHERE id = $1", [userId]),
-          query("SELECT solde FROM soldes WHERE user_id = $1", [userId]),
-          query("SELECT niveau,pourcentage,invitations_requises,invitations_actuelles FROM vip WHERE user_id = $1", [userId]),
-          query("SELECT COUNT(*) FROM utilisateurs WHERE parrain_id = $1", [userId]),
-          query("SELECT montant FROM historique_revenus WHERE user_id = $1", [userId])
+          safeQuery("SELECT id,nom,telephone,pays,solde,revenus_totaux,nombre_filleuls,code_parrainage,lien_parrainage,date_inscription FROM utilisateurs WHERE id = $1", [userId], { rows: [] }),
+          safeQuery("SELECT solde FROM soldes WHERE user_id = $1", [userId], { rows: [] }),
+          safeQuery("SELECT niveau,pourcentage,invitations_requises,invitations_actuelles FROM vip WHERE user_id = $1", [userId], { rows: [] }),
+          safeQuery("SELECT COUNT(*) FROM utilisateurs WHERE parrain_id = $1", [userId], { rows: [{ count: "0" }] }),
+          safeQuery("SELECT montant FROM historique_revenus WHERE user_id = $1", [userId], { rows: [] })
         ]);
         const user = userRes.rows[0];
-        const solde = soldeRes.rows[0]?.solde || 0;
+        if (!user) {
+          return res.status(404).json({ error: "Utilisateur introuvable" });
+        }
+        const solde = soldeRes.rows[0]?.solde ?? user.solde ?? 0;
         const vip = vipRes.rows[0] || { niveau: 0, pourcentage: 0, invitations_requises: 3, invitations_actuelles: 0 };
-        const filleulsCount = parseInt(filleulsRes.rows[0]?.count || 0);
-        const revenus_totaux = revenusRes.rows.reduce((sum, r) => sum + parseFloat(r.montant || 0), 0);
+        const filleulsCount = parseInt(filleulsRes.rows[0]?.count || user.nombre_filleuls || 0);
+        const revenus_totaux = revenusRes.rows.length > 0 ? revenusRes.rows.reduce((sum, r) => sum + parseFloat(r.montant || 0), 0) : parseFloat(user.revenus_totaux || 0);
         const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-        const commandesRes = await query(
+        const commandesRes = await safeQuery(
           `SELECT c.*, p.nom AS plan_nom, p.rendement_journalier, p.duree_jours
        FROM commandes c JOIN planinvestissement p ON c.plan_id = p.id
        WHERE c.user_id = $1 AND c.statut = 'actif' AND c.date_fin >= $2
        ORDER BY c.date_debut DESC LIMIT 3`,
-          [userId, today]
+          [userId, today],
+          { rows: [] }
         );
         res.json({
           user: { ...user, solde, revenus_totaux, nombre_filleuls: filleulsCount },
@@ -270,8 +283,8 @@ var require_user = __commonJS({
           commandes_actives: commandesRes.rows
         });
       } catch (err) {
-        console.error("Dashboard error:", err);
-        res.status(500).json({ error: "Erreur serveur" });
+        console.error("[dashboard] fatal error:", err.message, err.stack);
+        res.status(500).json({ error: "Erreur serveur", detail: err.message });
       }
     });
     router.get("/profile", authMiddleware, async (req, res) => {
