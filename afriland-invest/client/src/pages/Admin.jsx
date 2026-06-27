@@ -198,6 +198,8 @@ export default function Admin() {
   const [plans, setPlans] = useState([]);
   const [annonces, setAnnonces] = useState([]);
   const [settings, setSettings] = useState({ min_depot: '500', min_retrait: '2000' });
+  const [salaires, setSalaires] = useState([]);
+  const [newSalaire, setNewSalaire] = useState({ niveau: '', label: '', requis: '', cadeau: '' });
   const [transactions, setTransactions] = useState([]);
 
   const [loading, setLoading] = useState(true);
@@ -228,7 +230,7 @@ export default function Admin() {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef();
 
-  const [pages, setPages] = useState({ depots: 1, retraits: 1, cadeaux: 1, users: 1, posts: 1, plans: 1, annonces: 1, transactions: 1 });
+  const [pages, setPages] = useState({ depots: 1, retraits: 1, cadeaux: 1, users: 1, posts: 1, plans: 1, annonces: 1, transactions: 1, salaires: 1 });
   const setPage = (key, val) => setPages(p => ({ ...p, [key]: typeof val === 'function' ? val(p[key]) : val }));
 
   const navigate = useNavigate();
@@ -245,7 +247,7 @@ export default function Admin() {
 
   const loadAll = async () => {
     try {
-      const [statsRes, depotsRes, retraitsRes, cadeauxRes, usersRes, postsRes, plansRes, annoncesRes, settingsRes, txRes] = await Promise.all([
+      const [statsRes, depotsRes, retraitsRes, cadeauxRes, usersRes, postsRes, plansRes, annoncesRes, settingsRes, txRes, salairesRes] = await Promise.all([
         api.get('/admin/stats'),
         api.get('/admin/depots'),
         api.get('/admin/retraits'),
@@ -256,6 +258,7 @@ export default function Admin() {
         api.get('/admin/annonces'),
         api.get('/admin/settings'),
         api.get('/transactions/admin'),
+        api.get('/admin/salaires'),
       ]);
       setStats(statsRes.data);
       setDepots(depotsRes.data.depots || []);
@@ -267,6 +270,7 @@ export default function Admin() {
       setAnnonces(annoncesRes.data.annonces || []);
       setSettings(settingsRes.data.settings || { min_depot: '500' });
       setTransactions(txRes.data.transactions || []);
+      setSalaires(salairesRes.data.salaires || []);
     } catch { toast.error('Erreur de chargement'); }
     finally { setLoading(false); }
   };
@@ -362,6 +366,36 @@ export default function Admin() {
     catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
   };
 
+  const updateSalaire = (index, field, value) => {
+    setSalaires(s => s.map((item, i) => i === index ? { ...item, [field]: value } : item));
+  };
+
+  const saveSalaire = async (s) => {
+    try {
+      await api.put(`/admin/salaires/${s.niveau}`, { label: s.label, requis: s.requis, cadeau: s.cadeau });
+      toast.success(`Niveau ${s.niveau} sauvegardé ✅`);
+    } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
+  };
+
+  const addSalaire = async () => {
+    if (!newSalaire.niveau || !newSalaire.requis || !newSalaire.cadeau) return toast.error('Remplissez tous les champs');
+    try {
+      await api.post('/admin/salaires', newSalaire);
+      toast.success('Niveau ajouté ✅');
+      setNewSalaire({ niveau: '', label: '', requis: '', cadeau: '' });
+      loadAll();
+    } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
+  };
+
+  const deleteSalaire = async (niveau) => {
+    if (!window.confirm(`Supprimer le niveau VIP ${niveau} ?`)) return;
+    try {
+      await api.delete(`/admin/salaires/${niveau}`);
+      toast.success('Niveau supprimé');
+      loadAll();
+    } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
+  };
+
   const saveCommissions = async () => {
     try {
       await Promise.all([
@@ -430,6 +464,7 @@ export default function Admin() {
     { key: 'depots', label: 'Dépôts', icon: 'fa-arrow-down', color: '#34C759', badge: depots.filter(d => d.statut === 'en_attente').length },
     { key: 'retraits', label: 'Retraits', icon: 'fa-hand-holding-usd', color: '#007AFF', badge: retraits.filter(r => r.statut === 'en_attente').length },
     { key: 'cadeaux', label: 'Cadeaux VIP', icon: 'fa-gift', color: '#FF9500', badge: cadeaux.filter(c => c.statut === 'en_attente').length },
+    { key: 'salaires', label: 'Salaires VIP', icon: 'fa-money-bill-wave', color: '#34C759' },
     { key: 'transactions', label: 'Transactions', icon: 'fa-receipt', color: '#5856D6' },
     { key: 'posts', label: 'Posts', icon: 'fa-newspaper', color: '#FF3B30', badge: posts.filter(p => p.statut === 'en_attente').length },
     { key: 'annonces', label: 'Affiches', icon: 'fa-image', color: '#FF9500' },
@@ -1185,6 +1220,90 @@ export default function Admin() {
             </div>
             {annonces.length === 0 && <div className="empty-state"><i className="fas fa-image" /><p>Aucune affiche</p></div>}
             <Pagination total={annonces.length} page={pages.annonces} setPage={v => setPage('annonces', v)} />
+          </div>
+        )}
+
+        {/* ─── SALAIRES VIP ─── */}
+        {tab === 'salaires' && (
+          <div>
+            <SectionHeader icon="fa-money-bill-wave" title="Salaires VIP" />
+
+            {/* Niveaux existants */}
+            {salaires.map((s, i) => (
+              <div key={s.niveau} style={{ background: '#fff', borderRadius: 16, padding: '18px 16px', marginBottom: 14, boxShadow: 'var(--shadow-card)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: '#34C75920', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <i className="fas fa-star" style={{ color: '#34C759', fontSize: 14 }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontWeight: 700, fontSize: 14 }}>Niveau VIP {s.niveau}</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>Configuration du palier</p>
+                  </div>
+                  <button onClick={() => deleteSalaire(s.niveau)} style={{ width: 32, height: 32, borderRadius: 8, background: '#FF3B3020', border: 'none', color: '#FF3B30', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <i className="fas fa-trash" style={{ fontSize: 12 }} />
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  <div className="input-group">
+                    <label>Label (nom affiché)</label>
+                    <input type="text" value={s.label || ''} onChange={e => updateSalaire(i, 'label', e.target.value)} placeholder={`VIP ${s.niveau}`} />
+                  </div>
+                  <div className="input-group">
+                    <label>Niveau (numéro)</label>
+                    <input type="number" value={s.niveau} disabled style={{ opacity: 0.5 }} />
+                  </div>
+                  <div className="input-group">
+                    <label>Filleuls requis</label>
+                    <input type="number" value={s.requis} onChange={e => updateSalaire(i, 'requis', e.target.value)} placeholder="70" />
+                  </div>
+                  <div className="input-group">
+                    <label>Montant cadeau (FCFA)</label>
+                    <input type="number" value={s.cadeau} onChange={e => updateSalaire(i, 'cadeau', e.target.value)} placeholder="5000" />
+                  </div>
+                </div>
+                <button onClick={() => saveSalaire(s)} className="btn btn-primary" style={{ padding: '11px', borderRadius: 50 }}>
+                  <i className="fas fa-save" style={{ marginRight: 8 }} />Enregistrer
+                </button>
+              </div>
+            ))}
+
+            {salaires.length === 0 && (
+              <div className="empty-state"><i className="fas fa-money-bill-wave" /><p>Aucun palier configuré</p></div>
+            )}
+
+            {/* Ajouter un nouveau niveau */}
+            <div style={{ background: '#fff', borderRadius: 16, padding: '18px 16px', marginBottom: 14, boxShadow: 'var(--shadow-card)', border: '2px dashed #34C75940' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: '#34C75920', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className="fas fa-plus" style={{ color: '#34C759', fontSize: 14 }} />
+                </div>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: 14 }}>Ajouter un palier</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>Nouveau niveau VIP avec cadeau</p>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                <div className="input-group">
+                  <label>Numéro de niveau</label>
+                  <input type="number" value={newSalaire.niveau} onChange={e => setNewSalaire(s => ({ ...s, niveau: e.target.value }))} placeholder="4" />
+                </div>
+                <div className="input-group">
+                  <label>Label</label>
+                  <input type="text" value={newSalaire.label} onChange={e => setNewSalaire(s => ({ ...s, label: e.target.value }))} placeholder="VIP 4" />
+                </div>
+                <div className="input-group">
+                  <label>Filleuls requis</label>
+                  <input type="number" value={newSalaire.requis} onChange={e => setNewSalaire(s => ({ ...s, requis: e.target.value }))} placeholder="300" />
+                </div>
+                <div className="input-group">
+                  <label>Montant cadeau (FCFA)</label>
+                  <input type="number" value={newSalaire.cadeau} onChange={e => setNewSalaire(s => ({ ...s, cadeau: e.target.value }))} placeholder="15000" />
+                </div>
+              </div>
+              <button onClick={addSalaire} style={{ width: '100%', padding: '12px', borderRadius: 50, background: '#34C759', border: 'none', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer', boxShadow: '0 3px 10px rgba(52,199,89,0.35)' }}>
+                <i className="fas fa-plus" style={{ marginRight: 8 }} />Ajouter ce palier
+              </button>
+            </div>
           </div>
         )}
 

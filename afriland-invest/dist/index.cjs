@@ -518,11 +518,19 @@ var require_investment = __commonJS({
         res.status(500).json({ error: "Erreur lors de l'achat du plan" });
       }
     });
-    var VIP_LEVELS = [
-      { niveau: 1, requis: 70, cadeau: 5e3 },
-      { niveau: 2, requis: 100, cadeau: 8e3 },
-      { niveau: 3, requis: 200, cadeau: 1e4 }
+    var VIP_LEVELS_DEFAULT = [
+      { niveau: 1, label: "VIP 1", requis: 70, cadeau: 5e3 },
+      { niveau: 2, label: "VIP 2", requis: 100, cadeau: 8e3 },
+      { niveau: 3, label: "VIP 3", requis: 200, cadeau: 1e4 }
     ];
+    async function getVipLevels() {
+      try {
+        const { rows } = await query("SELECT niveau, label, requis, cadeau FROM vip_salaires ORDER BY niveau ASC");
+        if (rows.length > 0) return rows.map((r) => ({ niveau: r.niveau, label: r.label, requis: parseInt(r.requis), cadeau: parseFloat(r.cadeau) }));
+      } catch {
+      }
+      return VIP_LEVELS_DEFAULT;
+    }
     async function countFilleulsInvestisseurs(userId) {
       const { rows: filleuls } = await query("SELECT id FROM utilisateurs WHERE parrain_id = $1", [userId]);
       const ids = filleuls.map((f) => f.id);
@@ -536,6 +544,7 @@ var require_investment = __commonJS({
     router.get("/salary", authMiddleware, async (req, res) => {
       try {
         const userId = req.user.id;
+        const VIP_LEVELS = await getVipLevels();
         const count = await countFilleulsInvestisseurs(userId);
         const { rows: claims } = await query("SELECT niveau,statut FROM cadeaux_vip WHERE user_id = $1", [userId]);
         const claimMap = {};
@@ -548,6 +557,7 @@ var require_investment = __commonJS({
         });
         const niveaux = VIP_LEVELS.map((l) => ({
           niveau: l.niveau,
+          label: l.label,
           requis: l.requis,
           cadeau: l.cadeau,
           atteint: count >= l.requis,
@@ -569,6 +579,7 @@ var require_investment = __commonJS({
       try {
         const userId = req.user.id;
         const niveau = parseInt(req.body.niveau);
+        const VIP_LEVELS = await getVipLevels();
         const level = VIP_LEVELS.find((l) => l.niveau === niveau);
         if (!level) return res.status(400).json({ error: "Niveau VIP invalide" });
         const count = await countFilleulsInvestisseurs(userId);
@@ -1400,6 +1411,50 @@ var require_admin = __commonJS({
         res.status(500).json({ error: "Erreur serveur" });
       }
     });
+    router.get("/salaires", adminMiddleware, async (req, res) => {
+      try {
+        const { rows } = await query("SELECT * FROM vip_salaires ORDER BY niveau ASC");
+        res.json({ salaires: rows });
+      } catch (err) {
+        res.status(500).json({ error: "Erreur serveur" });
+      }
+    });
+    router.put("/salaires/:niveau", adminMiddleware, async (req, res) => {
+      try {
+        const niveau = parseInt(req.params.niveau);
+        const { label, requis, cadeau } = req.body;
+        if (!requis || cadeau === void 0) return res.status(400).json({ error: "Donn\xE9es invalides" });
+        await query(
+          `UPDATE vip_salaires SET label=$1, requis=$2, cadeau=$3, date_maj=NOW() WHERE niveau=$4`,
+          [label || `VIP ${niveau}`, parseInt(requis), parseFloat(cadeau), niveau]
+        );
+        res.json({ success: true });
+      } catch (err) {
+        res.status(500).json({ error: "Erreur serveur" });
+      }
+    });
+    router.post("/salaires", adminMiddleware, async (req, res) => {
+      try {
+        const { niveau, label, requis, cadeau } = req.body;
+        if (!niveau || !requis || cadeau === void 0) return res.status(400).json({ error: "Donn\xE9es invalides" });
+        await query(
+          `INSERT INTO vip_salaires (niveau, label, requis, cadeau) VALUES ($1, $2, $3, $4)`,
+          [parseInt(niveau), label || `VIP ${niveau}`, parseInt(requis), parseFloat(cadeau)]
+        );
+        res.json({ success: true });
+      } catch (err) {
+        if (err.code === "23505") return res.status(400).json({ error: "Ce niveau existe d\xE9j\xE0" });
+        res.status(500).json({ error: "Erreur serveur" });
+      }
+    });
+    router.delete("/salaires/:niveau", adminMiddleware, async (req, res) => {
+      try {
+        await query("DELETE FROM vip_salaires WHERE niveau=$1", [parseInt(req.params.niveau)]);
+        res.json({ success: true });
+      } catch (err) {
+        res.status(500).json({ error: "Erreur serveur" });
+      }
+    });
     module2.exports = router;
   }
 });
@@ -1811,13 +1866,30 @@ var require_migrate = __commonJS({
     user_id INT NOT NULL,
     nom_fichier VARCHAR(255) NOT NULL,
     date_upload TIMESTAMP DEFAULT NOW()
+  )`,
+      // Colonne niveau dans cadeaux_vip (si manquante)
+      `ALTER TABLE cadeaux_vip ADD COLUMN IF NOT EXISTS niveau INT DEFAULT 1`,
+      // Table vip_salaires (niveaux configurables par l'admin)
+      `CREATE TABLE IF NOT EXISTS vip_salaires (
+    id SERIAL PRIMARY KEY,
+    niveau INT NOT NULL UNIQUE,
+    label VARCHAR(100) DEFAULT '',
+    requis INT NOT NULL DEFAULT 70,
+    cadeau DECIMAL(15,2) NOT NULL DEFAULT 5000,
+    date_maj TIMESTAMP DEFAULT NOW()
   )`
     ];
     var DEFAULT_SETTINGS = [
       ["min_depot", "500", "Montant minimum de d\xE9p\xF4t"],
+      ["min_retrait", "2000", "Montant minimum de retrait"],
       ["commission_niveau1", "10", "Commission parrainage niveau 1 (%)"],
       ["commission_niveau2", "5", "Commission parrainage niveau 2 (%)"],
       ["commission_niveau3", "2", "Commission parrainage niveau 3 (%)"]
+    ];
+    var DEFAULT_SALAIRES = [
+      [1, "VIP 1", 70, 5e3],
+      [2, "VIP 2", 100, 8e3],
+      [3, "VIP 3", 200, 1e4]
     ];
     var DEFAULT_PLANS = [
       ["X", "Action VIP 1", 3e3, 10.5, 125],
@@ -1857,6 +1929,20 @@ var require_migrate = __commonJS({
         }
       } catch (err) {
         console.warn("\u26A0\uFE0F  Settings par d\xE9faut:", err.message.split("\n")[0]);
+      }
+      try {
+        const { rows: sv } = await pool.query("SELECT COUNT(*) FROM vip_salaires");
+        if (parseInt(sv[0].count) === 0) {
+          for (const [niveau, label, requis, cadeau] of DEFAULT_SALAIRES) {
+            await pool.query(
+              `INSERT INTO vip_salaires (niveau, label, requis, cadeau) VALUES ($1, $2, $3, $4) ON CONFLICT (niveau) DO NOTHING`,
+              [niveau, label, requis, cadeau]
+            );
+          }
+          console.log("\u2705 Salaires VIP ins\xE9r\xE9s par d\xE9faut");
+        }
+      } catch (err) {
+        console.warn("\u26A0\uFE0F  Salaires VIP par d\xE9faut:", err.message.split("\n")[0]);
       }
       try {
         const { rows } = await pool.query("SELECT COUNT(*) FROM planinvestissement");

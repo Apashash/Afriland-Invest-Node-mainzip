@@ -177,13 +177,33 @@ const MIGRATION_SQL = [
     nom_fichier VARCHAR(255) NOT NULL,
     date_upload TIMESTAMP DEFAULT NOW()
   )`,
+
+  // Colonne niveau dans cadeaux_vip (si manquante)
+  `ALTER TABLE cadeaux_vip ADD COLUMN IF NOT EXISTS niveau INT DEFAULT 1`,
+
+  // Table vip_salaires (niveaux configurables par l'admin)
+  `CREATE TABLE IF NOT EXISTS vip_salaires (
+    id SERIAL PRIMARY KEY,
+    niveau INT NOT NULL UNIQUE,
+    label VARCHAR(100) DEFAULT '',
+    requis INT NOT NULL DEFAULT 70,
+    cadeau DECIMAL(15,2) NOT NULL DEFAULT 5000,
+    date_maj TIMESTAMP DEFAULT NOW()
+  )`,
 ];
 
 const DEFAULT_SETTINGS = [
   ['min_depot', '500', 'Montant minimum de dépôt'],
+  ['min_retrait', '2000', 'Montant minimum de retrait'],
   ['commission_niveau1', '10', 'Commission parrainage niveau 1 (%)'],
   ['commission_niveau2', '5', 'Commission parrainage niveau 2 (%)'],
   ['commission_niveau3', '2', 'Commission parrainage niveau 3 (%)'],
+];
+
+const DEFAULT_SALAIRES = [
+  [1, 'VIP 1', 70,  5000],
+  [2, 'VIP 2', 100, 8000],
+  [3, 'VIP 3', 200, 10000],
 ];
 
 const DEFAULT_PLANS = [
@@ -229,6 +249,22 @@ async function runMigrations() {
     }
   } catch (err) {
     console.warn('⚠️  Settings par défaut:', err.message.split('\n')[0]);
+  }
+
+  // Insérer les salaires VIP par défaut seulement si la table est vide
+  try {
+    const { rows: sv } = await pool.query('SELECT COUNT(*) FROM vip_salaires');
+    if (parseInt(sv[0].count) === 0) {
+      for (const [niveau, label, requis, cadeau] of DEFAULT_SALAIRES) {
+        await pool.query(
+          `INSERT INTO vip_salaires (niveau, label, requis, cadeau) VALUES ($1, $2, $3, $4) ON CONFLICT (niveau) DO NOTHING`,
+          [niveau, label, requis, cadeau]
+        );
+      }
+      console.log('✅ Salaires VIP insérés par défaut');
+    }
+  } catch (err) {
+    console.warn('⚠️  Salaires VIP par défaut:', err.message.split('\n')[0]);
   }
 
   // Insérer les plans par défaut seulement si la table est vide

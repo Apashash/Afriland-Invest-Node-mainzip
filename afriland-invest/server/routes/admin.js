@@ -553,4 +553,53 @@ router.delete('/annonces/:id', adminMiddleware, async (req, res) => {
   }
 });
 
+// ── SALAIRES VIP ─────────────────────────────────────────────────
+router.get('/salaires', adminMiddleware, async (req, res) => {
+  try {
+    const { rows } = await query('SELECT * FROM vip_salaires ORDER BY niveau ASC');
+    res.json({ salaires: rows });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+router.put('/salaires/:niveau', adminMiddleware, async (req, res) => {
+  try {
+    const niveau = parseInt(req.params.niveau);
+    const { label, requis, cadeau } = req.body;
+    if (!requis || cadeau === undefined) return res.status(400).json({ error: 'Données invalides' });
+    await query(
+      `UPDATE vip_salaires SET label=$1, requis=$2, cadeau=$3, date_maj=NOW() WHERE niveau=$4`,
+      [label || `VIP ${niveau}`, parseInt(requis), parseFloat(cadeau), niveau]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+router.post('/salaires', adminMiddleware, async (req, res) => {
+  try {
+    const { niveau, label, requis, cadeau } = req.body;
+    if (!niveau || !requis || cadeau === undefined) return res.status(400).json({ error: 'Données invalides' });
+    await query(
+      `INSERT INTO vip_salaires (niveau, label, requis, cadeau) VALUES ($1, $2, $3, $4)`,
+      [parseInt(niveau), label || `VIP ${niveau}`, parseInt(requis), parseFloat(cadeau)]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'Ce niveau existe déjà' });
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+router.delete('/salaires/:niveau', adminMiddleware, async (req, res) => {
+  try {
+    await query('DELETE FROM vip_salaires WHERE niveau=$1', [parseInt(req.params.niveau)]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 module.exports = router;

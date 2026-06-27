@@ -115,11 +115,19 @@ router.post('/buy', authMiddleware, async (req, res) => {
   }
 });
 
-const VIP_LEVELS = [
-  { niveau: 1, requis: 70, cadeau: 5000 },
-  { niveau: 2, requis: 100, cadeau: 8000 },
-  { niveau: 3, requis: 200, cadeau: 10000 },
+const VIP_LEVELS_DEFAULT = [
+  { niveau: 1, label: 'VIP 1', requis: 70, cadeau: 5000 },
+  { niveau: 2, label: 'VIP 2', requis: 100, cadeau: 8000 },
+  { niveau: 3, label: 'VIP 3', requis: 200, cadeau: 10000 },
 ];
+
+async function getVipLevels() {
+  try {
+    const { rows } = await query('SELECT niveau, label, requis, cadeau FROM vip_salaires ORDER BY niveau ASC');
+    if (rows.length > 0) return rows.map(r => ({ niveau: r.niveau, label: r.label, requis: parseInt(r.requis), cadeau: parseFloat(r.cadeau) }));
+  } catch {}
+  return VIP_LEVELS_DEFAULT;
+}
 
 async function countFilleulsInvestisseurs(userId) {
   const { rows: filleuls } = await query('SELECT id FROM utilisateurs WHERE parrain_id = $1', [userId]);
@@ -135,6 +143,7 @@ async function countFilleulsInvestisseurs(userId) {
 router.get('/salary', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
+    const VIP_LEVELS = await getVipLevels();
     const count = await countFilleulsInvestisseurs(userId);
 
     const { rows: claims } = await query('SELECT niveau,statut FROM cadeaux_vip WHERE user_id = $1', [userId]);
@@ -146,6 +155,7 @@ router.get('/salary', authMiddleware, async (req, res) => {
 
     const niveaux = VIP_LEVELS.map((l) => ({
       niveau: l.niveau,
+      label: l.label,
       requis: l.requis,
       cadeau: l.cadeau,
       atteint: count >= l.requis,
@@ -172,6 +182,7 @@ router.post('/claim-gift', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const niveau = parseInt(req.body.niveau);
+    const VIP_LEVELS = await getVipLevels();
     const level = VIP_LEVELS.find((l) => l.niveau === niveau);
     if (!level) return res.status(400).json({ error: 'Niveau VIP invalide' });
 
