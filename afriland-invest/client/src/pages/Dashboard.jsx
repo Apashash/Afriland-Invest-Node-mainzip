@@ -353,9 +353,12 @@ function PlanCard({ plan, badge, onInvest }) {
     }}>
       <div style={{
         width: 56, height: 56, borderRadius: 12, flexShrink: 0,
-        background: 'rgba(255,255,255,0.2)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28,
-      }}>💼</div>
+        background: 'linear-gradient(135deg, #FF9500, #FFB347)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        overflow: 'hidden',
+      }}>
+        <img src="/vip-icon.png" alt="VIP" style={{ width: '85%', height: '85%', objectFit: 'contain', mixBlendMode: 'multiply' }} />
+      </div>
       <div style={{ flex: 1 }}>
         <p style={{ color: '#fff', fontWeight: 700, fontSize: 15, marginBottom: 2 }}>{plan.nom}</p>
         <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>Durée: {plan.duree_jours} jours</p>
