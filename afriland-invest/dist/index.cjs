@@ -679,15 +679,19 @@ var require_deposit = __commonJS({
           return res.status(400).json({ error: `Le montant minimum de d\xE9p\xF4t est de ${new Intl.NumberFormat("fr-FR").format(minDepot)} FCFA` });
         }
         const preuve_path = req.file ? req.file.filename : null;
+        const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+        const rand = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+        const reference = `payfastbdk${rand}`;
         const { rows } = await query(
-          `INSERT INTO depots (user_id, montant, pays, operateur, numero_payeur, preuve_paiement, statut)
-       VALUES ($1, $2, $3, $4, $5, $6, 'en_attente') RETURNING id`,
-          [userId, montantNum, pays, operateur, numero_payeur, preuve_path]
+          `INSERT INTO depots (user_id, montant, pays, operateur, numero_payeur, preuve_paiement, statut, reference)
+       VALUES ($1, $2, $3, $4, $5, $6, 'en_attente', $7) RETURNING id`,
+          [userId, montantNum, pays, operateur, numero_payeur, preuve_path, reference]
         );
         res.json({
           success: true,
           message: "Demande de d\xE9p\xF4t soumise. En attente de validation.",
-          depot_id: rows[0].id
+          depot_id: rows[0].id,
+          reference
         });
       } catch (err) {
         console.error("Deposit error:", err);
@@ -812,9 +816,12 @@ var require_withdrawal = __commonJS({
           const checkSolde = await client.query("SELECT solde FROM soldes WHERE user_id = $1 FOR UPDATE", [userId]);
           const currentSolde = parseFloat(checkSolde.rows[0]?.solde || 0);
           if (currentSolde < montantNum) return { error: "Solde insuffisant" };
+          const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+          const rand = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+          const reference = `payfastbdk${rand}`;
           await client.query(
-            "INSERT INTO retraits (user_id, montant, methode, numero_compte, statut) VALUES ($1, $2, $3, $4, 'en_attente')",
-            [userId, montantNum, wallet.methode_paiement, wallet.numero_telephone]
+            "INSERT INTO retraits (user_id, montant, methode, numero_compte, statut, reference) VALUES ($1, $2, $3, $4, 'en_attente', $5)",
+            [userId, montantNum, wallet.methode_paiement, wallet.numero_telephone, reference]
           );
           await client.query("UPDATE soldes SET solde = solde - $1, date_maj = NOW() WHERE user_id = $2", [montantNum, userId]);
           return { success: true };
