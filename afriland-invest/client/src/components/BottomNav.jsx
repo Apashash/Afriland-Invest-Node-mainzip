@@ -1,17 +1,19 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useLanguage } from '../contexts/LanguageContext.jsx';
 
-const navItems = [
-  { path: '/', icon: 'fa-home', label: 'Accueil' },
-  { path: '/investment', icon: 'fa-th-large', label: 'Produits' },
-  { path: '/orders', icon: 'fa-clipboard-list', label: 'Commandes' },
-  { path: '/referral', icon: 'fa-users', label: 'Équipe' },
-  { path: '/account', icon: 'fa-user', label: 'Mon compte' },
+const NAV_ITEMS = [
+  { path: '/', icon: 'fa-home', key: 'nav_home' },
+  { path: '/investment', icon: 'fa-th-large', key: 'nav_products' },
+  { path: '/orders', icon: 'fa-clipboard-list', key: 'nav_orders' },
+  { path: '/referral', icon: 'fa-users', key: 'nav_team' },
+  { path: '/account', icon: 'fa-user', key: 'nav_account' },
 ];
 
 export default function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useLanguage();
 
   return (
     <nav style={{
@@ -24,7 +26,7 @@ export default function BottomNav() {
       padding: '8px 0 calc(8px + env(safe-area-inset-bottom))',
       zIndex: 100,
     }}>
-      {navItems.map((item) => {
+      {NAV_ITEMS.map((item) => {
         const active = location.pathname === item.path ||
           (item.path !== '/' && location.pathname.startsWith(item.path));
         return (
@@ -39,7 +41,7 @@ export default function BottomNav() {
             }}
           >
             <i className={`fas ${item.icon}`} style={{ fontSize: 19 }} />
-            <span style={{ fontSize: 10, fontWeight: active ? 600 : 400 }}>{item.label}</span>
+            <span style={{ fontSize: 10, fontWeight: active ? 600 : 400 }}>{t(item.key)}</span>
           </button>
         );
       })}

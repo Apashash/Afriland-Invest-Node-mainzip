@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import api from '../lib/api';
 import { useAuth } from '../hooks/useAuth.jsx';
 import BottomNav from '../components/BottomNav';
+import { useLanguage, LangToggle } from '../contexts/LanguageContext.jsx';
 
 const FAUX_NOTIFS = [
   '🎉 Jean C. a retiré 15 000 FCFA',
@@ -22,10 +23,10 @@ const STATIC_SLIDES = [
 ];
 
 const MENU_ICONS = [
-  { icon: 'fa-headset', label: 'Service', path: '/faq', bg: '#4A90E2' },
-  { icon: 'fa-dice', label: 'Loterie', path: '/wheel', bg: '#FF3B30' },
-  { icon: 'fa-gift', label: 'Bonus', path: '/salary', bg: '#FF9500' },
-  { icon: 'fa-receipt', label: 'Détails', path: '/transactions', bg: '#5856D6' },
+  { icon: 'fa-headset', key: 'service', path: '/faq', bg: '#4A90E2' },
+  { icon: 'fa-dice', key: 'lottery', path: '/wheel', bg: '#FF3B30' },
+  { icon: 'fa-gift', key: 'bonus', path: '/salary', bg: '#FF9500' },
+  { icon: 'fa-receipt', key: 'details', path: '/transactions', bg: '#5856D6' },
 ];
 
 const NOTIF_SEEN_KEY = 'notif_last_seen';
@@ -43,6 +44,7 @@ export default function Dashboard() {
   const slideTimerRef = useRef(null);
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   useEffect(() => {
     loadData();
@@ -63,7 +65,7 @@ export default function Dashboard() {
     try {
       const res = await api.get('/user/dashboard');
       setData(res.data);
-    } catch { toast.error('Erreur de chargement'); }
+    } catch { toast.error(t('loading_error')); }
     finally { setLoading(false); }
   };
 
@@ -161,6 +163,7 @@ export default function Dashboard() {
                 <i className="fas fa-shield-alt" style={{ fontSize: 14 }} />
               </button>
             )}
+            <LangToggle />
             <button onClick={openNotifs} style={{
               width: 36, height: 36, borderRadius: 10,
               background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.4)',
@@ -187,9 +190,9 @@ export default function Dashboard() {
         {/* Texte central */}
         <div style={{ position: 'relative', zIndex: 2 }}>
           <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: 600, marginBottom: 4, textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
-            Investissez &amp; Gagnez
+            {t('invest_grow')}
           </p>
-          <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, marginBottom: 12 }}>Solde total</p>
+          <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, marginBottom: 12 }}>{t('total_balance')}</p>
           <p style={{ color: '#fff', fontSize: 34, fontWeight: 800, lineHeight: 1.1, textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
             {fmt(solde)} <span style={{ fontSize: 18, fontWeight: 600 }}>FCFA</span>
           </p>
@@ -209,25 +212,25 @@ export default function Dashboard() {
               fontWeight: 700, fontSize: 14, cursor: 'pointer',
               boxShadow: '0 3px 12px rgba(255,149,0,0.4)',
             }}>
-              Recharger
+              {t('recharge')}
             </button>
             <button onClick={() => navigate('/withdrawal')} style={{
               flex: 1, padding: '12px', borderRadius: 50,
               background: '#1A1A1A', border: 'none', color: '#fff',
               fontWeight: 700, fontSize: 14, cursor: 'pointer',
             }}>
-              Retirer
+              {t('withdraw')}
             </button>
           </div>
 
           {/* Stats */}
           <div style={{ display: 'flex', gap: 8 }}>
             <div style={{ flex: 1, background: '#FFF8F0', borderRadius: 12, padding: '10px 12px', textAlign: 'center' }}>
-              <p style={{ fontSize: 11, color: '#999', marginBottom: 3 }}>Revenus</p>
+              <p style={{ fontSize: 11, color: '#999', marginBottom: 3 }}>{t('revenues')}</p>
               <p style={{ fontWeight: 700, fontSize: 14, color: '#FF9500' }}>{fmt(data?.user?.revenus_totaux)} FCFA</p>
             </div>
             <div style={{ flex: 1, background: '#F0F8FF', borderRadius: 12, padding: '10px 12px', textAlign: 'center' }}>
-              <p style={{ fontSize: 11, color: '#999', marginBottom: 3 }}>Filleuls</p>
+              <p style={{ fontSize: 11, color: '#999', marginBottom: 3 }}>{t('referrals')}</p>
               <p style={{ fontWeight: 700, fontSize: 14, color: '#4A90E2' }}>{data?.user?.nombre_filleuls || 0}</p>
             </div>
           </div>
@@ -242,14 +245,14 @@ export default function Dashboard() {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <div>
-            <p style={{ fontWeight: 700, fontSize: 16, color: '#1A1A1A', marginBottom: 8 }}>Partager & Gagner</p>
+            <p style={{ fontWeight: 700, fontSize: 16, color: '#1A1A1A', marginBottom: 8 }}>{t('share_earn')}</p>
             <button onClick={() => navigate('/referral')} style={{
               padding: '8px 20px', borderRadius: 50,
               background: '#fff', border: 'none',
               color: '#FF3B30', fontWeight: 700, fontSize: 13, cursor: 'pointer',
               boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
             }}>
-              Inviter maintenant
+              {t('invite_now')}
             </button>
           </div>
           <div style={{ fontSize: 48 }}>🎁</div>
@@ -272,7 +275,7 @@ export default function Dashboard() {
               }}>
                 <i className={`fas ${item.icon}`} style={{ fontSize: 20, color: '#fff' }} />
               </div>
-              <span style={{ fontSize: 11, color: '#666', fontWeight: 500 }}>{item.label}</span>
+              <span style={{ fontSize: 11, color: '#666', fontWeight: 500 }}>{t(item.key)}</span>
             </button>
           ))}
         </div>
@@ -319,7 +322,7 @@ export default function Dashboard() {
 
       {/* ─── MEILLEURES VENTES ─── */}
       <div style={{ margin: '0 16px 16px' }}>
-        <p className="section-title">Meilleures ventes</p>
+        <p className="section-title">{t('best_sellers')}</p>
 
         {data?.commandes_actives?.length > 0 ? (
           data.commandes_actives.slice(0, 2).map(cmd => (
@@ -337,14 +340,14 @@ export default function Dashboard() {
           color: '#FF9500', fontWeight: 600, fontSize: 14, cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
         }}>
-          <i className="fas fa-th-large" /> Voir tous les produits
+          <i className="fas fa-th-large" /> {t('see_all')}
         </button>
       </div>
 
       {/* ─── PLANS ACTIFS ─── */}
       {data?.commandes_actives?.length > 0 && (
         <div style={{ margin: '0 16px 16px' }}>
-          <p className="section-title">Plans en cours ({data.commandes_actives.length})</p>
+          <p className="section-title">{t('active_plans')} ({data.commandes_actives.length})</p>
           {data.commandes_actives.map(cmd => (
             <div key={cmd.id} style={{
               background: '#fff', borderRadius: 14, padding: '14px 16px',
@@ -388,8 +391,8 @@ export default function Dashboard() {
                   <i className="fas fa-bell" style={{ color: '#fff', fontSize: 16 }} />
                 </div>
                 <div>
-                  <p style={{ color: '#fff', fontWeight: 800, fontSize: 16 }}>Notifications</p>
-                  <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>{notifs.length} opération(s)</p>
+                  <p style={{ color: '#fff', fontWeight: 800, fontSize: 16 }}>{t('notifications')}</p>
+                  <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>{notifs.length} {t('operations')}</p>
                 </div>
               </div>
               <button onClick={() => setShowNotifs(false)} style={{
@@ -406,8 +409,8 @@ export default function Dashboard() {
                   <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#FFF8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
                     <i className="fas fa-bell-slash" style={{ fontSize: 24, color: '#FF9500' }} />
                   </div>
-                  <p style={{ fontWeight: 600, color: '#666' }}>Aucune notification</p>
-                  <p style={{ fontSize: 12, marginTop: 4 }}>Vos dépôts, retraits et revenus apparaîtront ici</p>
+                  <p style={{ fontWeight: 600, color: '#666' }}>{t('no_notif')}</p>
+                  <p style={{ fontSize: 12, marginTop: 4 }}>{t('no_notif_sub')}</p>
                 </div>
               ) : notifs.map((n, idx) => {
                 const STATUT_COLOR = {

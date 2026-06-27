@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { useLanguage, LangToggle } from '../contexts/LanguageContext.jsx';
 
 const PAYS = [
   { code: '+237', label: '🇨🇲 +237' },
@@ -25,6 +26,7 @@ export default function Login() {
   const [regForm, setRegForm] = useState({ nom: '', indicatif: '+237', telephone: '', mot_de_passe: '', pays: 'Cameroun', code_parrain: '' });
   const { login, register } = useAuth();
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   useEffect(() => {
     fetch('/api/settings/public').then(r => r.json()).then(d => {
@@ -34,7 +36,7 @@ export default function Login() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (!loginForm.telephone || !loginForm.mot_de_passe) return toast.error('Remplissez tous les champs');
+    if (!loginForm.telephone || !loginForm.mot_de_passe) return toast.error(t('fill_all'));
     setLoading(true);
     try {
       await login(loginForm.indicatif, loginForm.telephone, loginForm.mot_de_passe);
@@ -46,8 +48,8 @@ export default function Login() {
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    if (!regForm.nom || !regForm.telephone || !regForm.mot_de_passe) return toast.error('Remplissez tous les champs');
-    if (regForm.mot_de_passe.length < 6) return toast.error('Mot de passe : 6 caractères minimum');
+    if (!regForm.nom || !regForm.telephone || !regForm.mot_de_passe) return toast.error(t('fill_all'));
+    if (regForm.mot_de_passe.length < 6) return toast.error(t('password_min'));
     setLoading(true);
     try {
       await register({ ...regForm, telephone: regForm.indicatif + regForm.telephone });
@@ -89,6 +91,11 @@ export default function Login() {
           }}
         />
 
+        {/* Bouton langue */}
+        <div style={{ position: 'absolute', top: 14, right: 16, zIndex: 10 }}>
+          <LangToggle />
+        </div>
+
         {/* Bandeau défilant */}
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0,
@@ -103,10 +110,10 @@ export default function Login() {
         {/* Texte au-dessus */}
         <div style={{ textAlign: 'center', position: 'relative', zIndex: 2, marginTop: 20 }}>
           <p style={{ color: '#fff', fontSize: 26, fontWeight: 800, lineHeight: 1.2, textShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
-            Investissez &amp; Gagnez
+            {t('invest_tagline')}
           </p>
           <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: 14, marginTop: 8, textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
-            Faites fructifier votre argent dès aujourd'hui
+            {t('invest_sub')}
           </p>
         </div>
       </div>
@@ -125,15 +132,15 @@ export default function Login() {
           <div style={{
             display: 'flex', background: '#F5F1E8', borderRadius: 50, padding: 4, marginBottom: 20,
           }}>
-            {['login', 'register'].map(t => (
-              <button key={t} onClick={() => setTab(t)} style={{
+            {['login', 'register'].map(tabKey => (
+              <button key={tabKey} onClick={() => setTab(tabKey)} style={{
                 flex: 1, padding: '10px', borderRadius: 50, border: 'none', cursor: 'pointer',
-                background: tab === t ? '#FF9500' : 'transparent',
-                color: tab === t ? '#fff' : '#999',
-                fontWeight: tab === t ? 700 : 400,
+                background: tab === tabKey ? '#FF9500' : 'transparent',
+                color: tab === tabKey ? '#fff' : '#999',
+                fontWeight: tab === tabKey ? 700 : 400,
                 fontSize: 14, transition: 'all 0.25s',
               }}>
-                {t === 'login' ? 'Connexion' : 'Inscription'}
+                {tabKey === 'login' ? t('login_tab') : t('register_tab')}
               </button>
             ))}
           </div>
@@ -158,7 +165,7 @@ export default function Login() {
                   </select>
                   <div style={{ width: 1, height: 24, background: '#E8E8E8' }} />
                   <input
-                    type="tel" placeholder="Numéro de téléphone"
+                    type="tel" placeholder={t('phone_placeholder')}
                     value={loginForm.telephone}
                     onChange={e => setLoginForm({ ...loginForm, telephone: e.target.value })}
                     style={{
@@ -177,7 +184,7 @@ export default function Login() {
                 }}>
                   <input
                     type={showPass ? 'text' : 'password'}
-                    placeholder="Mot de passe"
+                    placeholder={t('password_placeholder')}
                     value={loginForm.mot_de_passe}
                     onChange={e => setLoginForm({ ...loginForm, mot_de_passe: e.target.value })}
                     style={{
@@ -195,7 +202,7 @@ export default function Login() {
               <button type="submit" className="btn btn-primary" disabled={loading}>
                 {loading
                   ? <span className="loading-spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
-                  : 'Connexion'}
+                  : t('login_btn')}
               </button>
             </form>
           ) : (
@@ -206,7 +213,7 @@ export default function Login() {
                   background: '#F7F7F7', borderRadius: 12, border: '1.5px solid #E8E8E8',
                 }}>
                   <input
-                    type="text" placeholder="Nom complet"
+                    type="text" placeholder={t('name_placeholder')}
                     value={regForm.nom}
                     onChange={e => setRegForm({ ...regForm, nom: e.target.value })}
                     style={{
@@ -234,7 +241,7 @@ export default function Login() {
                   </select>
                   <div style={{ width: 1, height: 24, background: '#E8E8E8' }} />
                   <input
-                    type="tel" placeholder="Numéro de téléphone"
+                    type="tel" placeholder={t('phone_placeholder')}
                     value={regForm.telephone}
                     onChange={e => setRegForm({ ...regForm, telephone: e.target.value })}
                     style={{
@@ -252,7 +259,7 @@ export default function Login() {
                 }}>
                   <input
                     type={showPass ? 'text' : 'password'}
-                    placeholder="Mot de passe"
+                    placeholder={t('password_placeholder')}
                     value={regForm.mot_de_passe}
                     onChange={e => setRegForm({ ...regForm, mot_de_passe: e.target.value })}
                     style={{
@@ -298,7 +305,7 @@ export default function Login() {
                   background: '#F7F7F7', borderRadius: 12, border: '1.5px solid #E8E8E8',
                 }}>
                   <input
-                    type="text" placeholder="Code de parrainage (optionnel)"
+                    type="text" placeholder={t('referral_placeholder')}
                     value={regForm.code_parrain}
                     onChange={e => setRegForm({ ...regForm, code_parrain: e.target.value })}
                     style={{
@@ -312,7 +319,7 @@ export default function Login() {
               <button type="submit" className="btn btn-primary" disabled={loading}>
                 {loading
                   ? <span className="loading-spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
-                  : 'Créer mon compte'}
+                  : t('register_btn')}
               </button>
             </form>
           )}

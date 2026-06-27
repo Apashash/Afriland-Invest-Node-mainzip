@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
+import { LanguageProvider } from './contexts/LanguageContext.jsx';
 
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -34,6 +35,7 @@ function PublicRoute({ children }) {
 
 export default function App() {
   return (
+    <LanguageProvider>
     <AuthProvider>
       <BrowserRouter>
         <Toaster
@@ -71,5 +73,6 @@ export default function App() {
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+    </LanguageProvider>
   );
 }
