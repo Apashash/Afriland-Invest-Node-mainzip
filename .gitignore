@@ -1,7 +1,6 @@
 # See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
-# compiled output (root only — afriland-invest/dist/ committed for Plesk)
-/dist
+# compiled output
 /tmp
 out-tsc
 *.tsbuildinfo
