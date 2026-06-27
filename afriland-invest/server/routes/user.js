@@ -65,11 +65,20 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
 router.get('/profile', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    const [userRes, soldeRes] = await Promise.all([
-      query('SELECT id,nom,telephone,pays,code_parrainage,lien_parrainage,date_inscription FROM utilisateurs WHERE id = $1', [userId]),
+    const [userRes, soldeRes, depotsRes, retraitsRes] = await Promise.all([
+      query('SELECT id,nom,telephone,pays,code_parrainage,lien_parrainage,date_inscription,role FROM utilisateurs WHERE id = $1', [userId]),
       query('SELECT solde FROM soldes WHERE user_id = $1', [userId]),
+      query("SELECT COALESCE(SUM(montant),0) AS total FROM depots WHERE user_id = $1 AND statut = 'approuve'", [userId]),
+      query("SELECT COALESCE(SUM(montant),0) AS total FROM retraits WHERE user_id = $1 AND statut = 'approuve'", [userId]),
     ]);
-    res.json({ user: userRes.rows[0], solde: soldeRes.rows[0]?.solde || 0 });
+    res.json({
+      user: userRes.rows[0],
+      solde: soldeRes.rows[0]?.solde || 0,
+      stats: {
+        total_depots: parseFloat(depotsRes.rows[0]?.total || 0),
+        total_retraits: parseFloat(retraitsRes.rows[0]?.total || 0),
+      },
+    });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
