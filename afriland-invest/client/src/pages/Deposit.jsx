@@ -201,17 +201,25 @@ export default function Deposit() {
               <div key={d.id} style={{
                 background: '#fff', borderRadius: 14, padding: '14px 16px', marginBottom: 10,
                 boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               }}>
-                <div>
-                  <p style={{ fontWeight: 700, fontSize: 15, color: '#1A1A1A' }}>{fmt(d.montant)} FCFA</p>
-                  <p style={{ color: '#999', fontSize: 12 }}>{d.pays} • {d.operateur}</p>
-                  <p style={{ color: '#ccc', fontSize: 11 }}>{new Date(d.date_depot).toLocaleDateString('fr-FR')}</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <p style={{ fontWeight: 700, fontSize: 15, color: '#1A1A1A' }}>{fmt(d.montant)} FCFA</p>
+                    <p style={{ color: '#999', fontSize: 12 }}>{d.pays} • {d.operateur}</p>
+                    <p style={{ color: '#ccc', fontSize: 11 }}>{new Date(d.date_depot).toLocaleDateString('fr-FR')}</p>
+                  </div>
+                  <span className={`badge badge-${statusColor[d.statut] || 'yellow'}`}>
+                    <span className={`status-dot ${statusColor[d.statut] || 'yellow'}`} />
+                    {statusLabel[d.statut] || d.statut}
+                  </span>
                 </div>
-                <span className={`badge badge-${statusColor[d.statut] || 'yellow'}`}>
-                  <span className={`status-dot ${statusColor[d.statut] || 'yellow'}`} />
-                  {statusLabel[d.statut] || d.statut}
-                </span>
+                {d.reference && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, padding: '6px 10px', background: '#FFF8EE', borderRadius: 8 }}>
+                    <i className="fas fa-hashtag" style={{ color: '#FF9500', fontSize: 10 }} />
+                    <span style={{ flex: 1, color: '#FF9500', fontSize: 11, fontWeight: 700, fontFamily: 'monospace', letterSpacing: 0.3 }}>{d.reference}</span>
+                    <button onClick={() => { navigator.clipboard.writeText(d.reference); import('react-hot-toast').then(m => m.default.success('Référence copiée !')); }} style={{ background: '#FF9500', border: 'none', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', color: '#fff', fontSize: 10, fontWeight: 700 }}>Copier</button>
+                  </div>
+                )}
               </div>
             ))
           )}

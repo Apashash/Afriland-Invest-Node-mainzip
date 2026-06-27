@@ -303,32 +303,40 @@ export default function Withdrawal() {
               <div key={r.id} style={{
                 background: '#fff', borderRadius: 20, padding: '16px 18px', marginBottom: 10,
                 boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{
-                    width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{
+                      width: 42, height: 42, borderRadius: 12, flexShrink: 0,
+                      background: statusBg[r.statut] || '#F5F5F5',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <i className={`fas ${r.statut === 'valide' ? 'fa-check' : r.statut === 'rejete' ? 'fa-times' : 'fa-clock'}`}
+                        style={{ fontSize: 16, color: statusColor[r.statut] || '#999' }} />
+                    </div>
+                    <div>
+                      <p style={{ fontWeight: 700, fontSize: 15, color: '#1A1A1A' }}>{fmt(r.montant)} FCFA</p>
+                      <p style={{ fontSize: 12, color: '#999' }}>{r.methode} • {r.numero_compte}</p>
+                      <p style={{ fontSize: 11, color: '#bbb' }}>{new Date(r.date_demande).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                    </div>
+                  </div>
+                  <span style={{
                     background: statusBg[r.statut] || '#F5F5F5',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: statusColor[r.statut] || '#999',
+                    borderRadius: 20, padding: '4px 12px',
+                    fontSize: 12, fontWeight: 700,
+                    whiteSpace: 'nowrap',
                   }}>
-                    <i className={`fas ${r.statut === 'valide' ? 'fa-check' : r.statut === 'rejete' ? 'fa-times' : 'fa-clock'}`}
-                      style={{ fontSize: 16, color: statusColor[r.statut] || '#999' }} />
-                  </div>
-                  <div>
-                    <p style={{ fontWeight: 700, fontSize: 15, color: '#1A1A1A' }}>{fmt(r.montant)} FCFA</p>
-                    <p style={{ fontSize: 12, color: '#999' }}>{r.methode} • {r.numero_compte}</p>
-                    <p style={{ fontSize: 11, color: '#bbb' }}>{new Date(r.date_demande).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                  </div>
+                    {statusLabel[r.statut] || r.statut}
+                  </span>
                 </div>
-                <span style={{
-                  background: statusBg[r.statut] || '#F5F5F5',
-                  color: statusColor[r.statut] || '#999',
-                  borderRadius: 20, padding: '4px 12px',
-                  fontSize: 12, fontWeight: 700,
-                  whiteSpace: 'nowrap',
-                }}>
-                  {statusLabel[r.statut] || r.statut}
-                </span>
+                {r.reference && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, padding: '6px 10px', background: '#F0F6FF', borderRadius: 8 }}>
+                    <i className="fas fa-hashtag" style={{ color: '#007AFF', fontSize: 10 }} />
+                    <span style={{ flex: 1, color: '#007AFF', fontSize: 11, fontWeight: 700, fontFamily: 'monospace', letterSpacing: 0.3 }}>{r.reference}</span>
+                    <button onClick={() => { navigator.clipboard.writeText(r.reference); import('react-hot-toast').then(m => m.default.success('Référence copiée !')); }} style={{ background: '#007AFF', border: 'none', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', color: '#fff', fontSize: 10, fontWeight: 700 }}>Copier</button>
+                  </div>
+                )}
               </div>
             ))
           )}

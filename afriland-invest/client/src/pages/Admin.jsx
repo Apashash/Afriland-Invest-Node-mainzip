@@ -941,7 +941,12 @@ export default function Admin() {
                     <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{d.telephone} · {d.pays}</p>
                     <p style={{ color: 'var(--primary)', fontWeight: 800, fontSize: 17, marginTop: 4 }}>{fmt(d.montant)} FCFA</p>
                     <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{d.operateur} · {new Date(d.date_depot).toLocaleDateString('fr-FR')}</p>
-                    {d.reference && <p style={{ color: '#FF9500', fontSize: 11, fontWeight: 700, marginTop: 3, letterSpacing: 0.3 }}>🔖 {d.reference}</p>}
+                    {d.reference && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                        <span style={{ color: '#FF9500', fontSize: 11, fontWeight: 700, letterSpacing: 0.3, fontFamily: 'monospace' }}>{d.reference}</span>
+                        <button onClick={() => { navigator.clipboard.writeText(d.reference); toast.success('Référence copiée !'); }} style={{ background: '#FF950015', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', color: '#FF9500', fontSize: 10, fontWeight: 700 }}>Copier</button>
+                      </div>
+                    )}
                   </div>
                   <StatusBadge statut={d.statut} />
                 </div>
@@ -965,7 +970,12 @@ export default function Admin() {
                     <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.telephone}</p>
                     <p style={{ color: '#007AFF', fontWeight: 800, fontSize: 17, marginTop: 4 }}>{fmt(r.montant)} FCFA</p>
                     <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{r.methode} · {r.numero_compte} · {new Date(r.date_demande).toLocaleDateString('fr-FR')}</p>
-                    {r.reference && <p style={{ color: '#007AFF', fontSize: 11, fontWeight: 700, marginTop: 3, letterSpacing: 0.3 }}>🔖 {r.reference}</p>}
+                    {r.reference && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                        <span style={{ color: '#007AFF', fontSize: 11, fontWeight: 700, letterSpacing: 0.3, fontFamily: 'monospace' }}>{r.reference}</span>
+                        <button onClick={() => { navigator.clipboard.writeText(r.reference); toast.success('Référence copiée !'); }} style={{ background: '#007AFF15', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', color: '#007AFF', fontSize: 10, fontWeight: 700 }}>Copier</button>
+                      </div>
+                    )}
                   </div>
                   <StatusBadge statut={r.statut} />
                 </div>
