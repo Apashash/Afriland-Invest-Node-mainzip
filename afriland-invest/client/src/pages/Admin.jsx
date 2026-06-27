@@ -941,6 +941,7 @@ export default function Admin() {
                     <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{d.telephone} · {d.pays}</p>
                     <p style={{ color: 'var(--primary)', fontWeight: 800, fontSize: 17, marginTop: 4 }}>{fmt(d.montant)} FCFA</p>
                     <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{d.operateur} · {new Date(d.date_depot).toLocaleDateString('fr-FR')}</p>
+                    {d.reference && <p style={{ color: '#FF9500', fontSize: 11, fontWeight: 700, marginTop: 3, letterSpacing: 0.3 }}>🔖 {d.reference}</p>}
                   </div>
                   <StatusBadge statut={d.statut} />
                 </div>
@@ -964,6 +965,7 @@ export default function Admin() {
                     <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.telephone}</p>
                     <p style={{ color: '#007AFF', fontWeight: 800, fontSize: 17, marginTop: 4 }}>{fmt(r.montant)} FCFA</p>
                     <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{r.methode} · {r.numero_compte} · {new Date(r.date_demande).toLocaleDateString('fr-FR')}</p>
+                    {r.reference && <p style={{ color: '#007AFF', fontSize: 11, fontWeight: 700, marginTop: 3, letterSpacing: 0.3 }}>🔖 {r.reference}</p>}
                   </div>
                   <StatusBadge statut={r.statut} />
                 </div>

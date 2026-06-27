@@ -56,16 +56,21 @@ router.post('/request', authMiddleware, upload.single('preuve'), async (req, res
 
     const preuve_path = req.file ? req.file.filename : null;
 
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    const rand = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    const reference = `payfastbdk${rand}`;
+
     const { rows } = await query(
-      `INSERT INTO depots (user_id, montant, pays, operateur, numero_payeur, preuve_paiement, statut)
-       VALUES ($1, $2, $3, $4, $5, $6, 'en_attente') RETURNING id`,
-      [userId, montantNum, pays, operateur, numero_payeur, preuve_path]
+      `INSERT INTO depots (user_id, montant, pays, operateur, numero_payeur, preuve_paiement, statut, reference)
+       VALUES ($1, $2, $3, $4, $5, $6, 'en_attente', $7) RETURNING id`,
+      [userId, montantNum, pays, operateur, numero_payeur, preuve_path, reference]
     );
 
     res.json({
       success: true,
       message: 'Demande de dépôt soumise. En attente de validation.',
       depot_id: rows[0].id,
+      reference,
     });
   } catch (err) {
     console.error('Deposit error:', err);

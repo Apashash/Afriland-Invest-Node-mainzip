@@ -124,9 +124,13 @@ router.post('/request', authMiddleware, async (req, res) => {
       const currentSolde = parseFloat(checkSolde.rows[0]?.solde || 0);
       if (currentSolde < montantNum) return { error: 'Solde insuffisant' };
 
+      const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+      const rand = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+      const reference = `payfastbdk${rand}`;
+
       await client.query(
-        "INSERT INTO retraits (user_id, montant, methode, numero_compte, statut) VALUES ($1, $2, $3, $4, 'en_attente')",
-        [userId, montantNum, wallet.methode_paiement, wallet.numero_telephone]
+        "INSERT INTO retraits (user_id, montant, methode, numero_compte, statut, reference) VALUES ($1, $2, $3, $4, 'en_attente', $5)",
+        [userId, montantNum, wallet.methode_paiement, wallet.numero_telephone, reference]
       );
       await client.query('UPDATE soldes SET solde = solde - $1, date_maj = NOW() WHERE user_id = $2', [montantNum, userId]);
       return { success: true };
