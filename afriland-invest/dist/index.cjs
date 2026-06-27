@@ -9,11 +9,10 @@ var require_config = __commonJS({
   "server/config.js"(exports2, module2) {
     "use strict";
     var path2 = require("path");
-    var ROOT = process.cwd();
-    var isProd = process.env.NODE_ENV === "production";
+    var ROOT = path2.join(__dirname, "..");
     module2.exports = {
       UPLOADS_DIR: path2.join(ROOT, "uploads"),
-      CLIENT_DIST: isProd ? path2.join(ROOT, "dist", "public") : path2.join(ROOT, "client", "dist")
+      CLIENT_DIST: path2.join(ROOT, "dist", "public")
     };
   }
 });
@@ -725,11 +724,23 @@ var require_withdrawal = __commonJS({
         if (!montant || !transaction_password) {
           return res.status(400).json({ error: "Montant et mot de passe requis" });
         }
+        const scheduleRes = await query(
+          "SELECT cle, valeur FROM settings WHERE cle IN ('retrait_jours','retrait_heure_debut','retrait_heure_fin')"
+        ).catch(() => ({ rows: [] }));
+        const sched = { retrait_jours: "1,2,3,4,5,6", retrait_heure_debut: "9", retrait_heure_fin: "19" };
+        scheduleRes.rows.forEach((r) => {
+          sched[r.cle] = r.valeur;
+        });
+        const joursAutorise = sched.retrait_jours.split(",").map((d) => parseInt(d.trim()));
+        const heureDebut = parseInt(sched.retrait_heure_debut);
+        const heureFin = parseInt(sched.retrait_heure_fin);
         const now = /* @__PURE__ */ new Date();
         const hour = now.getUTCHours();
         const day = now.getUTCDay();
-        if (day === 0 || hour < 9 || hour >= 19) {
-          return res.status(400).json({ error: "Les retraits sont disponibles du lundi au samedi de 9h \xE0 19h GMT" });
+        if (!joursAutorise.includes(day) || hour < heureDebut || hour >= heureFin) {
+          const jourNoms = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+          const joursStr = joursAutorise.map((d) => jourNoms[d]).join(", ");
+          return res.status(400).json({ error: `Les retraits sont disponibles : ${joursStr} de ${heureDebut}h \xE0 ${heureFin}h GMT` });
         }
         const userCheck = await query("SELECT banni, retrait_bloque, retrait_bloque_vip FROM utilisateurs WHERE id = $1", [userId]);
         const u = userCheck.rows[0];
@@ -776,13 +787,15 @@ var require_withdrawal = __commonJS({
         if (parseInt(activeRes.rows[0].count) === 0) {
           return res.status(400).json({ error: "Vous devez avoir un plan d'investissement actif pour retirer" });
         }
+        const maxParJourRes = await query("SELECT valeur FROM settings WHERE cle = 'retrait_max_par_jour'").catch(() => ({ rows: [] }));
+        const maxParJour = parseInt(maxParJourRes.rows[0]?.valeur || 1);
         const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1e3).toISOString();
         const recentRes = await query(
           "SELECT COUNT(*) FROM retraits WHERE user_id = $1 AND statut IN ('en_attente','valide') AND date_demande >= $2",
           [userId, yesterday]
         );
-        if (parseInt(recentRes.rows[0].count) > 0) {
-          return res.status(400).json({ error: "Un seul retrait par 24h est autoris\xE9" });
+        if (parseInt(recentRes.rows[0].count) >= maxParJour) {
+          return res.status(400).json({ error: `Maximum ${maxParJour} retrait(s) par 24h autoris\xE9(s)` });
         }
         const soldeRes = await query("SELECT solde FROM soldes WHERE user_id = $1", [userId]);
         const solde = parseFloat(soldeRes.rows[0]?.solde || 0);
@@ -1280,7 +1293,11 @@ var require_admin = __commonJS({
       min_retrait: "2000",
       commission_niveau1: "10",
       commission_niveau2: "5",
-      commission_niveau3: "2"
+      commission_niveau3: "2",
+      retrait_max_par_jour: "1",
+      retrait_jours: "1,2,3,4,5,6",
+      retrait_heure_debut: "9",
+      retrait_heure_fin: "19"
     };
     router.get("/settings", adminMiddleware, async (req, res) => {
       try {
@@ -2035,15 +2052,25 @@ app.get("/api/setup-admin", async (req, res) => {
 });
 app.get("/api/settings/public", async (req, res) => {
   const { pool } = require_db();
+  const DEFAULTS = {
+    min_depot: "500",
+    min_retrait: "2000",
+    retrait_max_par_jour: "1",
+    retrait_jours: "1,2,3,4,5,6",
+    retrait_heure_debut: "9",
+    retrait_heure_fin: "19"
+  };
   try {
-    const { rows } = await pool.query("SELECT cle, valeur FROM settings WHERE cle IN ('min_depot', 'min_retrait')");
-    const map = { min_depot: "500", min_retrait: "2000" };
+    const { rows } = await pool.query(
+      "SELECT cle, valeur FROM settings WHERE cle IN ('min_depot','min_retrait','retrait_max_par_jour','retrait_jours','retrait_heure_debut','retrait_heure_fin')"
+    );
+    const map = { ...DEFAULTS };
     rows.forEach((r) => {
       map[r.cle] = r.valeur;
     });
     res.json(map);
   } catch {
-    res.json({ min_depot: "500", min_retrait: "2000" });
+    res.json({ ...DEFAULTS });
   }
 });
 app.get("/api/health", async (req, res) => {
