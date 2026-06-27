@@ -58,10 +58,19 @@ export default function Account() {
         position: 'relative',
         overflow: 'hidden',
       }}>
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 2px, transparent 2px, transparent 14px)',
-        }} />
+        <img
+          src="/payfast-bg.jpg"
+          alt=""
+          style={{
+            position: 'absolute',
+            top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            height: '80%',
+            width: 'auto',
+            objectFit: 'contain',
+            mixBlendMode: 'multiply',
+          }}
+        />
         <div style={{ textAlign: 'center', position: 'relative', zIndex: 2 }}>
           {/* Avatar */}
           <div style={{
