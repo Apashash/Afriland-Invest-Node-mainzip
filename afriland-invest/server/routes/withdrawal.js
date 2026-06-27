@@ -94,7 +94,9 @@ router.post('/request', authMiddleware, async (req, res) => {
     const solde = parseFloat(soldeRes.rows[0]?.solde || 0);
     const montantNum = parseFloat(montant);
 
-    if (montantNum < 2000) return res.status(400).json({ error: 'Retrait minimum: 2000' });
+    const minRetraitRes = await query("SELECT valeur FROM settings WHERE cle = 'min_retrait'").catch(() => ({ rows: [] }));
+    const minRetrait = parseFloat(minRetraitRes.rows[0]?.valeur || 2000);
+    if (montantNum < minRetrait) return res.status(400).json({ error: `Retrait minimum: ${new Intl.NumberFormat('fr-FR').format(minRetrait)} FCFA` });
     if (montantNum > solde) return res.status(400).json({ error: 'Solde insuffisant' });
 
     const result = await withTransaction(async (client) => {

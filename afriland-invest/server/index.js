@@ -81,6 +81,19 @@ app.get('/api/setup-admin', async (req, res) => {
   }
 });
 
+// ── Paramètres publics (min dépôt / min retrait) ────────────────
+app.get('/api/settings/public', async (req, res) => {
+  const { pool } = require('./db');
+  try {
+    const { rows } = await pool.query("SELECT cle, valeur FROM settings WHERE cle IN ('min_depot', 'min_retrait')");
+    const map = { min_depot: '500', min_retrait: '2000' };
+    rows.forEach(r => { map[r.cle] = r.valeur; });
+    res.json(map);
+  } catch {
+    res.json({ min_depot: '500', min_retrait: '2000' });
+  }
+});
+
 // ── Health check & diagnostic ────────────────────────────────────
 app.get('/api/health', async (req, res) => {
   const { pool } = require('./db');

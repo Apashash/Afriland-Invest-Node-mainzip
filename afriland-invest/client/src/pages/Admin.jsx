@@ -197,7 +197,7 @@ export default function Admin() {
   const [posts, setPosts] = useState([]);
   const [plans, setPlans] = useState([]);
   const [annonces, setAnnonces] = useState([]);
-  const [settings, setSettings] = useState({ min_depot: '500' });
+  const [settings, setSettings] = useState({ min_depot: '500', min_retrait: '2000' });
   const [transactions, setTransactions] = useState([]);
 
   const [loading, setLoading] = useState(true);
@@ -354,6 +354,11 @@ export default function Admin() {
 
   const saveSettings = async () => {
     try { await api.put('/admin/settings', { cle: 'min_depot', valeur: settings.min_depot }); toast.success('Sauvegardé ✅'); }
+    catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
+  };
+
+  const saveRetrait = async () => {
+    try { await api.put('/admin/settings', { cle: 'min_retrait', valeur: settings.min_retrait }); toast.success('Sauvegardé ✅'); }
     catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
   };
 
@@ -1203,6 +1208,25 @@ export default function Admin() {
                 <input type="number" value={settings.min_depot || '500'} onChange={e => setSettings(s => ({ ...s, min_depot: e.target.value }))} placeholder="500" />
               </div>
               <button onClick={saveSettings} className="btn btn-primary" style={{ padding: '12px', borderRadius: 50 }}>
+                <i className="fas fa-save" style={{ marginRight: 8 }} />Enregistrer
+              </button>
+            </div>
+
+            <div style={{ background: '#fff', borderRadius: 16, padding: '18px 16px', marginBottom: 14, boxShadow: 'var(--shadow-card)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: '#4A90E220', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className="fas fa-arrow-up" style={{ color: '#4A90E2', fontSize: 14 }} />
+                </div>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: 14 }}>Retrait minimum</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>Montant minimal pour retirer (FCFA)</p>
+                </div>
+              </div>
+              <div className="input-group" style={{ marginBottom: 12 }}>
+                <label>Montant minimum (FCFA)</label>
+                <input type="number" value={settings.min_retrait || '2000'} onChange={e => setSettings(s => ({ ...s, min_retrait: e.target.value }))} placeholder="2000" />
+              </div>
+              <button onClick={saveRetrait} className="btn btn-primary" style={{ padding: '12px', borderRadius: 50 }}>
                 <i className="fas fa-save" style={{ marginRight: 8 }} />Enregistrer
               </button>
             </div>

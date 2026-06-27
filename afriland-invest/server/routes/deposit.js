@@ -48,8 +48,10 @@ router.post('/request', authMiddleware, upload.single('preuve'), async (req, res
     }
 
     const montantNum = parseFloat(montant);
-    if (montantNum < 500) {
-      return res.status(400).json({ error: 'Le montant minimum de dépôt est de 500' });
+    const minDepotRes = await query("SELECT valeur FROM settings WHERE cle = 'min_depot'").catch(() => ({ rows: [] }));
+    const minDepot = parseFloat(minDepotRes.rows[0]?.valeur || 500);
+    if (montantNum < minDepot) {
+      return res.status(400).json({ error: `Le montant minimum de dépôt est de ${new Intl.NumberFormat('fr-FR').format(minDepot)} FCFA` });
     }
 
     const preuve_path = req.file ? req.file.filename : null;

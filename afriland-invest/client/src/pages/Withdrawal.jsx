@@ -12,18 +12,21 @@ export default function Withdrawal() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [tab, setTab] = useState('form');
+  const [minRetrait, setMinRetrait] = useState(2000);
   const navigate = useNavigate();
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
-      const [dashRes, histRes] = await Promise.all([
+      const [dashRes, histRes, settingsRes] = await Promise.all([
         api.get('/user/dashboard'),
         api.get('/withdrawal/list'),
+        api.get('/settings/public'),
       ]);
       setUserInfo(dashRes.data.user);
       setHistory(histRes.data.retraits);
+      setMinRetrait(parseFloat(settingsRes.data.min_retrait || 2000));
     } catch { toast.error('Erreur de chargement'); }
     finally { setLoading(false); }
   };
@@ -31,7 +34,7 @@ export default function Withdrawal() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.montant || !form.transaction_password) return toast.error('Remplissez tous les champs');
-    if (parseFloat(form.montant) < 2000) return toast.error('Retrait minimum: 2000 FCFA');
+    if (parseFloat(form.montant) < minRetrait) return toast.error(`Retrait minimum: ${new Intl.NumberFormat('fr-FR').format(minRetrait)} FCFA`);
     setSubmitting(true);
     try {
       const res = await api.post('/withdrawal/request', form);
@@ -83,7 +86,7 @@ export default function Withdrawal() {
             </p>
             <ul style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8, paddingLeft: 16 }}>
               <li>Lundi au samedi de 9h à 19h (GMT)</li>
-              <li>Minimum de retrait: 2,000 FCFA</li>
+              <li>Minimum de retrait: {new Intl.NumberFormat('fr-FR').format(minRetrait)} FCFA</li>
               <li>Un seul retrait toutes les 24h</li>
               <li>Avoir un plan d'investissement actif</li>
               <li>Portefeuille configuré obligatoire</li>
@@ -103,8 +106,8 @@ export default function Withdrawal() {
           <form onSubmit={handleSubmit}>
             <div className="input-group">
               <label>Montant (FCFA)</label>
-              <input type="number" placeholder="Minimum 2000 FCFA" value={form.montant}
-                onChange={e => setForm({ ...form, montant: e.target.value })} min="2000" />
+              <input type="number" placeholder={`Minimum ${new Intl.NumberFormat('fr-FR').format(minRetrait)} FCFA`} value={form.montant}
+                onChange={e => setForm({ ...form, montant: e.target.value })} min={minRetrait} />
             </div>
             <div className="input-group">
               <label>Mot de passe de transaction (4 chiffres)</label>

@@ -14,20 +14,23 @@ export default function Deposit() {
   const [submitting, setSubmitting] = useState(false);
   const [tab, setTab] = useState('form');
   const [solde, setSolde] = useState(0);
+  const [minDepot, setMinDepot] = useState(500);
   const navigate = useNavigate();
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
-      const [opRes, histRes, userRes] = await Promise.all([
+      const [opRes, histRes, userRes, settingsRes] = await Promise.all([
         api.get('/deposit/operators'),
         api.get('/deposit/list'),
         api.get('/user/profile'),
+        api.get('/settings/public'),
       ]);
       setOperators(opRes.data.pays_operateurs);
       setHistory(histRes.data.depots);
       setSolde(userRes.data.solde || 0);
+      setMinDepot(parseFloat(settingsRes.data.min_depot || 500));
       const firstPays = Object.keys(opRes.data.pays_operateurs)[0];
       setForm(f => ({ ...f, pays: firstPays, operateur: Object.keys(opRes.data.pays_operateurs[firstPays]?.operators || {})[0] || '' }));
     } catch { toast.error('Erreur de chargement'); }
@@ -43,7 +46,7 @@ export default function Deposit() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.montant || !form.pays || !form.operateur || !form.numero_payeur) return toast.error('Remplissez tous les champs');
-    if (parseFloat(form.montant) < 500) return toast.error('Montant minimum: 500 FCFA');
+    if (parseFloat(form.montant) < minDepot) return toast.error(`Montant minimum: ${new Intl.NumberFormat('fr-FR').format(minDepot)} FCFA`);
     setSubmitting(true);
     try {
       const res = await api.post('/deposit/request', form);
@@ -181,7 +184,7 @@ export default function Deposit() {
             {/* Instructions */}
             <div style={{ marginTop: 16 }}>
               <p style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>
-                <span style={{ color: '#34C759', marginRight: 4 }}>✅</span>Montant minimum: 500 FCFA
+                <span style={{ color: '#34C759', marginRight: 4 }}>✅</span>Montant minimum: {new Intl.NumberFormat('fr-FR').format(minDepot)} FCFA
               </p>
               <p style={{ fontSize: 12, color: '#999' }}>
                 <span style={{ color: '#34C759', marginRight: 4 }}>✅</span>Validé sous 24h ouvrables

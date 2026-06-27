@@ -413,6 +413,7 @@ router.put('/posts/:id/:action', adminMiddleware, async (req, res) => {
 
 const SETTINGS_DEFAULTS = {
   min_depot: '500',
+  min_retrait: '2000',
   commission_niveau1: '10',
   commission_niveau2: '5',
   commission_niveau3: '2',
