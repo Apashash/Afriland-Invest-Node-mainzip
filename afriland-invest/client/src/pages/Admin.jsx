@@ -222,13 +222,13 @@ export default function Admin() {
 
   const MENU = [
     { key: 'home', label: 'Tableau de bord', icon: 'fa-tachometer-alt', color: '#FF9500' },
+    { key: 'plans', label: 'Plans VIP', icon: 'fa-chart-line', color: '#34C759' },
+    { key: 'users', label: 'Utilisateurs', icon: 'fa-users', color: '#007AFF' },
     { key: 'depots', label: 'Dépôts', icon: 'fa-arrow-down', color: '#34C759', badge: depots.filter(d => d.statut === 'en_attente').length },
     { key: 'retraits', label: 'Retraits', icon: 'fa-hand-holding-usd', color: '#007AFF', badge: retraits.filter(r => r.statut === 'en_attente').length },
     { key: 'cadeaux', label: 'Cadeaux VIP', icon: 'fa-gift', color: '#FF9500', badge: cadeaux.filter(c => c.statut === 'en_attente').length },
     { key: 'transactions', label: 'Transactions', icon: 'fa-receipt', color: '#5856D6' },
-    { key: 'users', label: 'Utilisateurs', icon: 'fa-users', color: '#007AFF' },
     { key: 'posts', label: 'Posts', icon: 'fa-newspaper', color: '#FF3B30', badge: posts.filter(p => p.statut === 'en_attente').length },
-    { key: 'plans', label: 'Plans VIP', icon: 'fa-chart-line', color: '#34C759' },
     { key: 'annonces', label: 'Affiches', icon: 'fa-image', color: '#FF9500' },
     { key: 'settings', label: 'Paramètres', icon: 'fa-cog', color: '#8E8E93' },
   ];
