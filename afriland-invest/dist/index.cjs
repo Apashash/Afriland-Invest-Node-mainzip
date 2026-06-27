@@ -275,7 +275,7 @@ SQL: ${sql}`);
           }
         };
         const [userRes, soldeRes, vipRes, filleulsRes, revenusRes] = await Promise.all([
-          safeQuery("SELECT id,nom,telephone,pays,solde,revenus_totaux,nombre_filleuls,code_parrainage,lien_parrainage,date_inscription FROM utilisateurs WHERE id = $1", [userId], { rows: [] }),
+          safeQuery("SELECT * FROM utilisateurs WHERE id = $1", [userId], { rows: [] }),
           safeQuery("SELECT solde FROM soldes WHERE user_id = $1", [userId], { rows: [] }),
           safeQuery("SELECT niveau,pourcentage,invitations_requises,invitations_actuelles FROM vip WHERE user_id = $1", [userId], { rows: [] }),
           safeQuery("SELECT COUNT(*) FROM utilisateurs WHERE parrain_id = $1", [userId], { rows: [{ count: "0" }] }),
