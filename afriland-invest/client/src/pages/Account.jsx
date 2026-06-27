@@ -38,14 +38,14 @@ export default function Account() {
   const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0));
 
   const menuItems = [
-    { icon: '🔑', label: 'Mot de passe transaction', onPress: () => setShowTxForm(!showTxForm) },
-    { icon: '🔒', label: 'Mes investissements', path: '/orders' },
-    { icon: '👥', label: 'Mon équipe', path: '/referral' },
-    { icon: '👑', label: 'Salaire VIP', path: '/salary' },
-    { icon: '🎰', label: 'Roue de la fortune', path: '/wheel' },
-    { icon: '💼', label: 'Mon portefeuille', path: '/wallet' },
-    { icon: '❓', label: 'FAQ / Aide', path: '/faq' },
-    { icon: 'ℹ️', label: 'À propos', onPress: () => toast('PayFast v1.0') },
+    { fa: 'fa-key',          bg: '#FFF3E0', color: '#FF9500', label: 'Mot de passe transaction', onPress: () => setShowTxForm(!showTxForm) },
+    { fa: 'fa-lock',         bg: '#E8F5E9', color: '#34C759', label: 'Mes investissements', path: '/orders' },
+    { fa: 'fa-users',        bg: '#E3F2FD', color: '#4A90E2', label: 'Mon équipe', path: '/referral' },
+    { fa: 'fa-crown',        bg: '#FFF8E1', color: '#F5A623', label: 'Salaire VIP', path: '/salary' },
+    { fa: 'fa-dice',         bg: '#FCE4EC', color: '#FF3B30', label: 'Roue de la fortune', path: '/wheel' },
+    { fa: 'fa-wallet',       bg: '#EDE7F6', color: '#5856D6', label: 'Mon portefeuille', path: '/wallet' },
+    { fa: 'fa-question-circle', bg: '#E0F7FA', color: '#00BCD4', label: 'FAQ / Aide', path: '/faq' },
+    { fa: 'fa-info-circle',  bg: '#E8EAF6', color: '#3F51B5', label: 'À propos', onPress: () => toast('PayFast v1.0') },
   ];
 
   return (
@@ -149,7 +149,12 @@ export default function Account() {
                   textAlign: 'left',
                 }}
               >
-                <span style={{ fontSize: 20, width: 28, textAlign: 'center' }}>{item.icon}</span>
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                  background: item.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <i className={`fas ${item.fa}`} style={{ fontSize: 16, color: item.color }} />
+                </div>
                 <span style={{ flex: 1, fontWeight: 500, fontSize: 14, color: '#1A1A1A' }}>{item.label}</span>
                 <i className="fas fa-chevron-right" style={{ color: '#CCC', fontSize: 12 }} />
               </button>
