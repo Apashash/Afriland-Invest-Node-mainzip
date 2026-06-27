@@ -93,17 +93,18 @@ export default function Dashboard() {
           position: 'absolute', inset: 0,
           background: 'linear-gradient(160deg, #FF9500 0%, #FFB347 55%, #1A1A1A 100%)',
         }} />
-        {/* Logo filigrane centré, taille naturelle, opacité */}
+        {/* Logo PayFast clair et net */}
         <img
           src="/payfast-bg.png"
           alt=""
           style={{
             position: 'absolute',
-            right: -20, bottom: -10,
-            height: '140%',
+            right: -10, bottom: -5,
+            height: '100%',
             width: 'auto',
             objectFit: 'contain',
-            opacity: 0.12,
+            opacity: 0.45,
+            imageRendering: 'auto',
           }}
         />
 
