@@ -201,6 +201,11 @@ export default function Admin() {
   const [transactions, setTransactions] = useState([]);
 
   const [loading, setLoading] = useState(true);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifSeen, setNotifSeen] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('notif_seen') || '[]'); } catch { return []; }
+  });
+  const bellRef = useRef();
   const [txTypeFilter, setTxTypeFilter] = useState('all');
   const [txStatutFilter, setTxStatutFilter] = useState('all');
 
@@ -220,6 +225,14 @@ export default function Admin() {
   const navigate = useNavigate();
 
   useEffect(() => { loadAll(); }, []);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (bellRef.current && !bellRef.current.contains(e.target)) setNotifOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const loadAll = async () => {
     try {
@@ -441,7 +454,93 @@ export default function Admin() {
             {MENU.find(m => m.key === tab)?.label || 'Administration'}
           </p>
         </div>
-        <div style={{ width: 40 }} />
+        {/* ── Cloche notifications ── */}
+        {(() => {
+          const allNotifs = [
+            ...depots.filter(d => d.statut === 'en_attente').map(d => ({
+              id: `depot-${d.id}`, type: 'depot', icon: 'fa-arrow-down', color: '#FF9500',
+              title: 'Dépôt en attente', sub: `${d.nom} · ${fmt(d.montant)} FCFA`, tab: 'depots',
+              date: d.date_depot,
+            })),
+            ...retraits.filter(r => r.statut === 'en_attente').map(r => ({
+              id: `retrait-${r.id}`, type: 'retrait', icon: 'fa-hand-holding-usd', color: '#5856D6',
+              title: 'Retrait en attente', sub: `${r.nom} · ${fmt(r.montant)} FCFA`, tab: 'retraits',
+              date: r.date_demande,
+            })),
+            ...cadeaux.filter(c => c.statut === 'en_attente').map(c => ({
+              id: `cadeau-${c.id}`, type: 'cadeau', icon: 'fa-gift', color: '#34C759',
+              title: 'Cadeau VIP réclamé', sub: `${c.nom} · Niveau ${c.niveau}`, tab: 'cadeaux',
+              date: c.date_demande,
+            })),
+            ...posts.filter(p => p.statut === 'en_attente').map(p => ({
+              id: `post-${p.id}`, type: 'post', icon: 'fa-newspaper', color: '#FF3B30',
+              title: 'Post en attente', sub: p.message?.substring(0, 40) + (p.message?.length > 40 ? '…' : ''), tab: 'posts',
+              date: p.date_creation,
+            })),
+          ].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+          const unseen = allNotifs.filter(n => !notifSeen.includes(n.id));
+          const badgeCount = unseen.length;
+
+          const markSeen = () => {
+            const ids = allNotifs.map(n => n.id);
+            setNotifSeen(ids);
+            localStorage.setItem('notif_seen', JSON.stringify(ids));
+          };
+
+          return (
+            <div ref={bellRef} style={{ position: 'relative' }}>
+              <button
+                onClick={() => { setNotifOpen(o => !o); if (!notifOpen) markSeen(); }}
+                style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.2)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}
+              >
+                <i className="fas fa-bell" style={{ fontSize: 17 }} />
+                {badgeCount > 0 && (
+                  <span style={{ position: 'absolute', top: 5, right: 5, minWidth: 16, height: 16, background: '#FF3B30', borderRadius: 10, fontSize: 10, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px', border: '1.5px solid #FF9500', lineHeight: 1 }}>
+                    {badgeCount > 9 ? '9+' : badgeCount}
+                  </span>
+                )}
+              </button>
+
+              {notifOpen && (
+                <div style={{ position: 'fixed', top: 66, right: 12, width: 300, maxHeight: 420, background: '#fff', borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', zIndex: 600, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid #F0F0F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <p style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-dark)' }}>Notifications</p>
+                    {allNotifs.length > 0 && (
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{allNotifs.length} en attente</span>
+                    )}
+                  </div>
+                  <div style={{ overflowY: 'auto', flex: 1 }}>
+                    {allNotifs.length === 0 ? (
+                      <div style={{ padding: '32px 16px', textAlign: 'center' }}>
+                        <i className="fas fa-check-circle" style={{ fontSize: 28, color: '#34C759', marginBottom: 8 }} />
+                        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Tout est traité !</p>
+                      </div>
+                    ) : allNotifs.map(n => (
+                      <div
+                        key={n.id}
+                        onClick={() => { navigate_(n.tab); setNotifOpen(false); }}
+                        style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '11px 14px', cursor: 'pointer', borderBottom: '1px solid #F8F8F8', transition: 'background 0.1s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#FAFAFA'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <div style={{ width: 34, height: 34, borderRadius: 9, background: n.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                          <i className={`fas ${n.icon}`} style={{ color: n.color, fontSize: 13 }} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-dark)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.title}</p>
+                          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.sub}</p>
+                          <p style={{ fontSize: 10, color: '#C0C0C0', marginTop: 3 }}>{new Date(n.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                        </div>
+                        <i className="fas fa-chevron-right" style={{ color: '#DDD', fontSize: 10, marginTop: 10, flexShrink: 0 }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── Main content ── */}
