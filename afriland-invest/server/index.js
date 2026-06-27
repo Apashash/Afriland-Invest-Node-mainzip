@@ -1,11 +1,12 @@
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(process.cwd(), '.env') });
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 
 const { supabase } = require('./db');
+const { UPLOADS_DIR, CLIENT_DIST } = require('./config');
 
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
@@ -27,7 +28,7 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
@@ -40,14 +41,13 @@ app.use('/api/posts', postRoutes);
 app.use('/api/annonces', annoncesRoutes);
 app.use('/api/transactions', transactionsRoutes);
 
-const clientBuildPath = path.join(__dirname, '../client/dist');
-app.use(express.static(clientBuildPath, { etag: false, lastModified: false }));
+app.use(express.static(CLIENT_DIST, { etag: false, lastModified: false }));
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ error: 'Route non trouvée' });
   }
   res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(clientBuildPath, 'index.html'));
+  res.sendFile(path.join(CLIENT_DIST, 'index.html'));
 });
 
 app.use((err, req, res, next) => {

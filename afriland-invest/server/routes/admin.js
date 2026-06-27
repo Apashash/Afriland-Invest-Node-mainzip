@@ -3,10 +3,11 @@ const { supabase } = require('../db');
 const { adminMiddleware } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
+const { UPLOADS_DIR } = require('../config');
 const router = express.Router();
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, '../../uploads')),
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => cb(null, 'annonce_' + Date.now() + path.extname(file.originalname)),
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
