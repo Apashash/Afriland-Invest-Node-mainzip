@@ -25,12 +25,12 @@ name = "AFRILAND INVEST"
 author = "agent"
 
 [workflows.workflow.metadata]
-outputType = "console"
+outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd afriland-invest && node server/index.js"
-waitForPort = 3000
+waitForPort = 5000
 
 [agent]
 stack = "BEST_EFFORT_FALLBACK"

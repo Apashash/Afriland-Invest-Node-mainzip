@@ -17,7 +17,7 @@ const annoncesRoutes = require('./routes/annonces');
 const transactionsRoutes = require('./routes/transactions');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
