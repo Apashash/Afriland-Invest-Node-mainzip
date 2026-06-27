@@ -75,6 +75,116 @@ function SectionHeader({ icon, title, badge, action }) {
   );
 }
 
+function TransactionChart({ depots, retraits, fmt }) {
+  const MONTHS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+  const now = new Date();
+  const months = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+    return { key: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`, label: MONTHS[d.getMonth()] };
+  });
+
+  const bucket = (arr, dateField) => {
+    const map = {};
+    (arr || []).forEach(item => {
+      const d = new Date(item[dateField]);
+      const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      if (!map[k]) map[k] = { valide: 0, rejete: 0, en_attente: 0 };
+      map[k][item.statut] = (map[k][item.statut] || 0) + 1;
+    });
+    return map;
+  };
+
+  const depotMap = bucket(depots, 'date_depot');
+  const retraitMap = bucket(retraits, 'date_demande');
+
+  const W = 340, H = 180, PL = 28, PB = 32, PT = 12, PR = 8;
+  const chartW = W - PL - PR;
+  const chartH = H - PB - PT;
+  const barGroupW = chartW / months.length;
+  const barW = Math.min(10, barGroupW / 5);
+  const gap = 2;
+
+  const allVals = months.flatMap(m => [
+    depotMap[m.key]?.valide || 0, depotMap[m.key]?.rejete || 0,
+    retraitMap[m.key]?.valide || 0, retraitMap[m.key]?.rejete || 0,
+  ]);
+  const maxVal = Math.max(...allVals, 1);
+
+  const toY = v => PT + chartH - (v / maxVal) * chartH;
+  const barH = v => (v / maxVal) * chartH;
+
+  const LEGEND = [
+    { color: '#34C759', label: 'Dép. validés' },
+    { color: '#FF3B30', label: 'Dép. rejetés' },
+    { color: '#007AFF', label: 'Ret. validés' },
+    { color: '#FF9500', label: 'Ret. rejetés' },
+  ];
+
+  return (
+    <div style={{ background: '#fff', borderRadius: 20, padding: '20px 16px 16px', boxShadow: 'var(--shadow-card)', marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 9, background: '#FF950015', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <i className="fas fa-chart-bar" style={{ color: '#FF9500', fontSize: 15 }} />
+        </div>
+        <div>
+          <p style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-dark)' }}>Activité financière</p>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>6 derniers mois</p>
+        </div>
+      </div>
+
+      <div style={{ overflowX: 'auto' }}>
+        <svg width={W} height={H} style={{ display: 'block', margin: '0 auto' }}>
+          {/* Grid lines */}
+          {[0, 0.25, 0.5, 0.75, 1].map((t, i) => {
+            const y = PT + chartH * (1 - t);
+            return (
+              <g key={i}>
+                <line x1={PL} x2={W - PR} y1={y} y2={y} stroke="#F0F0F0" strokeWidth={1} />
+                <text x={PL - 4} y={y + 4} textAnchor="end" fontSize={8} fill="#999">
+                  {t === 0 ? '0' : Math.round(maxVal * t)}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Bars */}
+          {months.map((m, mi) => {
+            const cx = PL + mi * barGroupW + barGroupW / 2;
+            const dv = depotMap[m.key]?.valide || 0;
+            const dr = depotMap[m.key]?.rejete || 0;
+            const rv = retraitMap[m.key]?.valide || 0;
+            const rr = retraitMap[m.key]?.rejete || 0;
+            const totalW = 4 * barW + 3 * gap;
+            const x0 = cx - totalW / 2;
+            return (
+              <g key={m.key}>
+                <rect x={x0} y={toY(dv)} width={barW} height={Math.max(barH(dv), dv > 0 ? 2 : 0)} fill="#34C759" rx={2} />
+                <rect x={x0 + barW + gap} y={toY(dr)} width={barW} height={Math.max(barH(dr), dr > 0 ? 2 : 0)} fill="#FF3B30" rx={2} />
+                <rect x={x0 + 2*(barW + gap)} y={toY(rv)} width={barW} height={Math.max(barH(rv), rv > 0 ? 2 : 0)} fill="#007AFF" rx={2} />
+                <rect x={x0 + 3*(barW + gap)} y={toY(rr)} width={barW} height={Math.max(barH(rr), rr > 0 ? 2 : 0)} fill="#FF9500" rx={2} />
+                <text x={cx} y={H - 8} textAnchor="middle" fontSize={9} fill="#999">{m.label}</text>
+              </g>
+            );
+          })}
+
+          {/* X axis */}
+          <line x1={PL} x2={W - PR} y1={PT + chartH} y2={PT + chartH} stroke="#E0E0E0" strokeWidth={1} />
+        </svg>
+      </div>
+
+      {/* Legend */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginTop: 12, justifyContent: 'center' }}>
+        {LEGEND.map(l => (
+          <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 3, background: l.color }} />
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{l.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Admin() {
   const [stats, setStats] = useState(null);
   const [tab, setTab] = useState('home');
@@ -381,13 +491,13 @@ export default function Admin() {
         {/* ─── HOME ─── */}
         {tab === 'home' && stats && (
           <div>
-            {/* Stats grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
+            {/* Stats grid — row 1 */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
               {[
                 { label: 'Utilisateurs', value: stats.users.count, icon: 'fa-users', color: '#007AFF', bg: '#007AFF15' },
                 { label: 'Plans actifs', value: stats.commandes.count, icon: 'fa-chart-line', color: '#34C759', bg: '#34C75915' },
-                { label: 'Dépôts validés', value: `${fmt(stats.depots.total)}`, sub: 'FCFA', icon: 'fa-arrow-down', color: '#FF9500', bg: '#FF950015' },
-                { label: 'Retraits validés', value: `${fmt(stats.retraits.total)}`, sub: 'FCFA', icon: 'fa-hand-holding-usd', color: '#5856D6', bg: '#5856D615' },
+                { label: 'Dépôts validés', value: fmt(stats.depots.total), sub: 'FCFA', icon: 'fa-arrow-down', color: '#FF9500', bg: '#FF950015' },
+                { label: 'Retraits validés', value: fmt(stats.retraits.total), sub: 'FCFA', icon: 'fa-hand-holding-usd', color: '#5856D6', bg: '#5856D615' },
               ].map(s => (
                 <div key={s.label} style={{ background: '#fff', borderRadius: 18, padding: '18px 16px', boxShadow: 'var(--shadow-card)' }}>
                   <div style={{ width: 38, height: 38, borderRadius: 10, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
@@ -400,6 +510,63 @@ export default function Admin() {
               ))}
             </div>
 
+            {/* Stats grid — row 2 (nouvelles sections) */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
+              {[
+                {
+                  label: 'Dépôts en attente',
+                  value: stats.depots.en_attente,
+                  icon: 'fa-hourglass-half',
+                  color: '#FF9500',
+                  bg: '#FF950015',
+                  action: () => navigate_('depots'),
+                },
+                {
+                  label: 'Retraits en attente',
+                  value: stats.retraits.en_attente,
+                  icon: 'fa-clock',
+                  color: '#FF3B30',
+                  bg: '#FF3B3015',
+                  action: () => navigate_('retraits'),
+                },
+                {
+                  label: 'Avec investissement',
+                  value: stats.users_avec_investissement,
+                  icon: 'fa-briefcase',
+                  color: '#34C759',
+                  bg: '#34C75915',
+                  action: () => navigate_('users'),
+                },
+                {
+                  label: 'Total inscrits',
+                  value: stats.users.count,
+                  icon: 'fa-user-check',
+                  color: '#5856D6',
+                  bg: '#5856D615',
+                  action: () => navigate_('users'),
+                },
+              ].map(s => (
+                <div
+                  key={s.label}
+                  onClick={s.action}
+                  style={{ background: '#fff', borderRadius: 18, padding: '18px 16px', boxShadow: 'var(--shadow-card)', cursor: 'pointer', position: 'relative', overflow: 'hidden' }}
+                >
+                  {s.value > 0 && (s.label.includes('attente')) && (
+                    <span style={{ position: 'absolute', top: 10, right: 10, background: '#FF3B30', color: '#fff', borderRadius: 20, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
+                      {s.value}
+                    </span>
+                  )}
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                    <i className={`fas ${s.icon}`} style={{ color: s.color, fontSize: 16 }} />
+                  </div>
+                  <p style={{ fontWeight: 800, fontSize: 22, color: s.value > 0 && s.label.includes('attente') ? s.color : 'var(--text-dark)', lineHeight: 1 }}>{s.value}</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{s.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Graphique dépôts / retraits */}
+            <TransactionChart depots={depots} retraits={retraits} fmt={fmt} />
           </div>
         )}
 

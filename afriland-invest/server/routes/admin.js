@@ -15,24 +15,33 @@ const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.get('/stats', adminMiddleware, async (req, res) => {
   try {
+    const today = new Date().toISOString().split('T')[0];
     const [
       { count: usersCount },
-      { data: depotsData },
-      { data: retraitsData },
-      { count: commandesCount },
+      { data: depotsValides },
+      { data: retraitsValides },
+      { count: commandesActifCount },
+      { count: depotsAttenteCount },
+      { count: retraitsAttenteCount },
+      { data: commandesUsersData },
     ] = await Promise.all([
       supabase.from('utilisateurs').select('*', { count: 'exact', head: true }),
       supabase.from('depots').select('montant').eq('statut', 'valide'),
       supabase.from('retraits').select('montant').eq('statut', 'valide'),
       supabase.from('commandes').select('*', { count: 'exact', head: true }).eq('statut', 'actif'),
+      supabase.from('depots').select('*', { count: 'exact', head: true }).eq('statut', 'en_attente'),
+      supabase.from('retraits').select('*', { count: 'exact', head: true }).eq('statut', 'en_attente'),
+      supabase.from('commandes').select('user_id').eq('statut', 'actif').gte('date_fin', today),
     ]);
-    const totalDepots = (depotsData || []).reduce((s, d) => s + parseFloat(d.montant || 0), 0);
-    const totalRetraits = (retraitsData || []).reduce((s, r) => s + parseFloat(r.montant || 0), 0);
+    const totalDepots = (depotsValides || []).reduce((s, d) => s + parseFloat(d.montant || 0), 0);
+    const totalRetraits = (retraitsValides || []).reduce((s, r) => s + parseFloat(r.montant || 0), 0);
+    const usersAvecInvestissement = new Set((commandesUsersData || []).map(c => c.user_id)).size;
     res.json({
       users: { count: usersCount || 0 },
-      depots: { count: 0, total: totalDepots },
-      retraits: { count: 0, total: totalRetraits },
-      commandes: { count: commandesCount || 0 },
+      depots: { total: totalDepots, en_attente: depotsAttenteCount || 0 },
+      retraits: { total: totalRetraits, en_attente: retraitsAttenteCount || 0 },
+      commandes: { count: commandesActifCount || 0 },
+      users_avec_investissement: usersAvecInvestissement,
     });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
