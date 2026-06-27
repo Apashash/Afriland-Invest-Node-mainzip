@@ -1,11 +1,8 @@
 const path = require('path');
 
-const ROOT = process.cwd();
-const isProd = process.env.NODE_ENV === 'production';
+const ROOT = path.join(__dirname, '..');
 
 module.exports = {
   UPLOADS_DIR: path.join(ROOT, 'uploads'),
-  CLIENT_DIST: isProd
-    ? path.join(ROOT, 'dist', 'public')
-    : path.join(ROOT, 'client', 'dist'),
+  CLIENT_DIST: path.join(ROOT, 'dist', 'public'),
 };
