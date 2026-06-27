@@ -1,16 +1,27 @@
 {
-  "name": "workspace",
-  "version": "0.0.0",
-  "license": "MIT",
+  "name": "afriland-invest-plesk",
+  "version": "1.0.0",
+  "description": "AFRILAND INVEST - Plateforme d'investissement",
+  "main": "dist/index.cjs",
   "scripts": {
-    "prepare": "git config core.hooksPath .githooks || true",
-    "postinstall": "cd afriland-invest && npm install",
-    "build": "cd afriland-invest && npm run build",
     "start": "node dist/index.cjs"
   },
-  "private": true,
-  "devDependencies": {
-    "prettier": "^3.8.3",
-    "typescript": "~5.9.3"
+  "dependencies": {
+    "@supabase/supabase-js": "^2.108.1",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.22.0",
+    "uuid": "^9.0.0",
+    "ws": "^8.21.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
