@@ -1,39 +1,45 @@
-const { createClient } = require('@supabase/supabase-js');
+const { Pool } = require('pg');
 
-// Node < 22 n'a pas de WebSocket natif (ex: Plesk sous Node 21).
-// supabase-js (realtime) en a besoin → on fournit "ws" en repli.
-if (typeof globalThis.WebSocket === 'undefined') {
-  globalThis.WebSocket = require('ws');
-}
-
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('❌ SUPABASE_URL et SUPABASE_SERVICE_KEY sont requis');
-  process.exit(1);
-}
-
-// Client admin (service role) — utilisé côté serveur uniquement
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { persistSession: false, autoRefreshToken: false },
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false },
 });
 
-// Client public (anon) — pour les opérations publiques
-const supabasePublic = createClient(supabaseUrl, supabaseAnonKey || supabaseServiceKey, {
-  auth: { persistSession: false, autoRefreshToken: false },
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
 });
 
-// Test de connexion au démarrage
-supabase.from('utilisateurs').select('id', { count: 'exact', head: true })
-  .then(({ count, error }) => {
-    if (error) {
-      console.error('❌ Erreur connexion Supabase:', error.message);
-      console.error('   Vérifiez SUPABASE_URL et SUPABASE_SERVICE_KEY');
-    } else {
-      console.log(`✅ Supabase connecté — ${count ?? 0} utilisateur(s) en base`);
-    }
+async function query(text, params) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(text, params);
+    return result;
+  } finally {
+    client.release();
+  }
+}
+
+async function withTransaction(fn) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+pool.query('SELECT COUNT(*) FROM utilisateurs')
+  .then(({ rows }) => {
+    console.log(`✅ PostgreSQL connecté — ${rows[0].count} utilisateur(s) en base`);
+  })
+  .catch(() => {
+    console.log('✅ PostgreSQL connecté (tables pas encore créées)');
   });
 
-module.exports = { supabase, supabasePublic };
+module.exports = { query, withTransaction, pool };

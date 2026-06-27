@@ -1,16 +1,12 @@
 const express = require('express');
-const { supabase } = require('../db');
+const { query, withTransaction } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 
 router.get('/plans', authMiddleware, async (req, res) => {
   try {
-    const { data: plans, error } = await supabase
-      .from('planinvestissement')
-      .select('*')
-      .order('prix', { ascending: true });
-    if (error) throw error;
-    const result = (plans || []).map((p) => ({
+    const { rows: plans } = await query('SELECT * FROM planinvestissement ORDER BY prix ASC');
+    const result = plans.map((p) => ({
       ...p,
       revenu_journalier: (parseFloat(p.prix) * parseFloat(p.rendement_journalier)) / 100,
       revenu_total: ((parseFloat(p.prix) * parseFloat(p.rendement_journalier)) / 100) * p.duree_jours,
@@ -23,25 +19,29 @@ router.get('/plans', authMiddleware, async (req, res) => {
 
 router.get('/my-orders', authMiddleware, async (req, res) => {
   try {
-    const { data: orders, error } = await supabase
-      .from('commandes')
-      .select('*, planinvestissement(nom, rendement_journalier, duree_jours, serie)')
-      .eq('user_id', req.user.id)
-      .order('date_debut', { ascending: false });
-    if (error) throw error;
-    const result = (orders || []).map(c => ({
-      ...c,
-      plan_nom: c.planinvestissement?.nom,
-      rendement_journalier: c.planinvestissement?.rendement_journalier,
-      duree_jours: c.planinvestissement?.duree_jours,
-      serie: c.planinvestissement?.serie,
-      planinvestissement: undefined,
-    }));
-    res.json({ orders: result });
+    const { rows } = await query(
+      `SELECT c.*, p.nom AS plan_nom, p.rendement_journalier, p.duree_jours, p.serie
+       FROM commandes c JOIN planinvestissement p ON c.plan_id = p.id
+       WHERE c.user_id = $1 ORDER BY c.date_debut DESC`,
+      [req.user.id]
+    );
+    res.json({ orders: rows });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
+
+async function getSettingDecimal(client, key, defaultVal) {
+  try {
+    const { rows } = await client.query('SELECT valeur FROM settings WHERE cle = $1', [key]);
+    if (!rows[0]) return defaultVal;
+    const val = parseFloat(rows[0].valeur);
+    if (isNaN(val) || val < 0 || val > 100) return defaultVal;
+    return val;
+  } catch {
+    return defaultVal;
+  }
+}
 
 router.post('/buy', authMiddleware, async (req, res) => {
   try {
@@ -50,43 +50,65 @@ router.post('/buy', authMiddleware, async (req, res) => {
 
     if (!plan_id) return res.status(400).json({ error: 'Plan requis' });
 
-    const { data: tp } = await supabase
-      .from('transaction_passwords')
-      .select('password')
-      .eq('user_id', userId)
-      .maybeSingle();
+    const result = await withTransaction(async (client) => {
+      const tpRes = await client.query('SELECT password FROM transaction_passwords WHERE user_id = $1', [userId]);
+      if (!tpRes.rows[0]) return { error: 'Veuillez configurer votre mot de passe de transaction' };
+      if (tpRes.rows[0].password !== transaction_password) return { error: 'Mot de passe de transaction incorrect' };
 
-    if (!tp) return res.status(400).json({ error: 'Veuillez configurer votre mot de passe de transaction' });
-    if (tp.password !== transaction_password) return res.status(400).json({ error: 'Mot de passe de transaction incorrect' });
+      const planRes = await client.query('SELECT * FROM planinvestissement WHERE id = $1', [plan_id]);
+      if (!planRes.rows[0]) return { error: 'Plan introuvable' };
+      const plan = planRes.rows[0];
 
-    const { data: plan } = await supabase
-      .from('planinvestissement')
-      .select('*')
-      .eq('id', plan_id)
-      .single();
-    if (!plan) return res.status(404).json({ error: 'Plan introuvable' });
+      const soldeRes = await client.query('SELECT solde FROM soldes WHERE user_id = $1', [userId]);
+      const solde = parseFloat(soldeRes.rows[0]?.solde || 0);
+      if (solde < parseFloat(plan.prix)) return { error: 'Solde insuffisant' };
 
-    const { data: soldeRow } = await supabase
-      .from('soldes')
-      .select('solde')
-      .eq('user_id', userId)
-      .maybeSingle();
-    const solde = parseFloat(soldeRow?.solde || 0);
+      const rev_j = (parseFloat(plan.prix) * parseFloat(plan.rendement_journalier)) / 100;
+      const date_fin = new Date();
+      date_fin.setDate(date_fin.getDate() + plan.duree_jours);
+      const date_fin_str = date_fin.toISOString().split('T')[0];
 
-    if (solde < parseFloat(plan.prix)) {
-      return res.status(400).json({ error: 'Solde insuffisant' });
-    }
+      await client.query(
+        `INSERT INTO commandes (user_id, plan_id, montant, revenu_journalier, date_debut, date_fin, statut)
+         VALUES ($1, $2, $3, $4, CURRENT_DATE, $5, 'actif')`,
+        [userId, plan_id, plan.prix, rev_j, date_fin_str]
+      );
 
-    const { data: result, error } = await supabase.rpc('buy_plan', {
-      p_user_id: userId,
-      p_plan_id: plan_id,
-      p_tx_password: transaction_password,
+      await client.query('UPDATE soldes SET solde = solde - $1, date_maj = NOW() WHERE user_id = $2', [plan.prix, userId]);
+
+      const comm1 = await getSettingDecimal(client, 'commission_niveau1', 10);
+      const comm2 = await getSettingDecimal(client, 'commission_niveau2', 5);
+      const comm3 = await getSettingDecimal(client, 'commission_niveau3', 2);
+      const commissions = [comm1, comm2, comm3];
+
+      let parrainRes = await client.query('SELECT parrain_id FROM utilisateurs WHERE id = $1', [userId]);
+      let parrain_id = parrainRes.rows[0]?.parrain_id;
+      const visited = new Set([userId]);
+
+      for (let i = 0; i < 3 && parrain_id; i++) {
+        if (visited.has(parrain_id)) break;
+        visited.add(parrain_id);
+        const montant = (parseFloat(plan.prix) * commissions[i]) / 100;
+        if (montant > 0) {
+          await client.query(
+            `INSERT INTO soldes (user_id, solde, date_maj) VALUES ($1, $2, NOW())
+             ON CONFLICT (user_id) DO UPDATE SET solde = soldes.solde + $2, date_maj = NOW()`,
+            [parrain_id, montant]
+          );
+          await client.query(
+            'INSERT INTO historique_revenus (user_id, montant, type) VALUES ($1, $2, $3)',
+            [parrain_id, montant, 'parrainage']
+          );
+        }
+        const nextRes = await client.query('SELECT parrain_id FROM utilisateurs WHERE id = $1', [parrain_id]);
+        parrain_id = nextRes.rows[0]?.parrain_id;
+      }
+
+      return { success: true, plan_nom: plan.nom };
     });
 
-    if (error) throw error;
-    if (result?.error) return res.status(400).json({ error: result.error });
-
-    res.json({ success: true, message: `Plan "${plan.nom}" activé avec succès` });
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.json({ success: true, message: `Plan "${result.plan_nom}" activé avec succès` });
   } catch (err) {
     console.error('Buy error:', err);
     res.status(500).json({ error: "Erreur lors de l'achat du plan" });
@@ -100,17 +122,14 @@ const VIP_LEVELS = [
 ];
 
 async function countFilleulsInvestisseurs(userId) {
-  const { data: filleuls } = await supabase
-    .from('utilisateurs')
-    .select('id')
-    .eq('parrain_id', userId);
-  const ids = (filleuls || []).map((f) => f.id);
+  const { rows: filleuls } = await query('SELECT id FROM utilisateurs WHERE parrain_id = $1', [userId]);
+  const ids = filleuls.map((f) => f.id);
   if (ids.length === 0) return 0;
-  const { data: commandes } = await supabase
-    .from('commandes')
-    .select('user_id')
-    .in('user_id', ids);
-  return new Set((commandes || []).map((c) => c.user_id)).size;
+  const { rows: commandes } = await query(
+    'SELECT DISTINCT user_id FROM commandes WHERE user_id = ANY($1)',
+    [ids]
+  );
+  return commandes.length;
 }
 
 router.get('/salary', authMiddleware, async (req, res) => {
@@ -118,12 +137,9 @@ router.get('/salary', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     const count = await countFilleulsInvestisseurs(userId);
 
-    const { data: claims } = await supabase
-      .from('cadeaux_vip')
-      .select('niveau,statut')
-      .eq('user_id', userId);
+    const { rows: claims } = await query('SELECT niveau,statut FROM cadeaux_vip WHERE user_id = $1', [userId]);
     const claimMap = {};
-    (claims || []).forEach((c) => { claimMap[c.niveau] = c.statut; });
+    claims.forEach((c) => { claimMap[c.niveau] = c.statut; });
 
     let niveauActuel = 0;
     VIP_LEVELS.forEach((l) => { if (count >= l.requis) niveauActuel = l.niveau; });
@@ -164,35 +180,26 @@ router.post('/claim-gift', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: `Il faut ${level.requis} filleuls ayant investi pour réclamer ce cadeau` });
     }
 
-    const { data: existing } = await supabase
-      .from('cadeaux_vip')
-      .select('id,statut')
-      .eq('user_id', userId)
-      .eq('niveau', niveau)
-      .maybeSingle();
+    const { rows: existing } = await query('SELECT id,statut FROM cadeaux_vip WHERE user_id = $1 AND niveau = $2', [userId, niveau]);
+    const ex = existing[0];
 
-    if (existing && existing.statut === 'valide') {
-      return res.status(400).json({ error: 'Cadeau déjà reçu' });
-    }
-    if (existing && existing.statut === 'en_attente') {
-      return res.status(400).json({ error: 'Cadeau déjà réclamé, en attente de confirmation' });
-    }
+    if (ex && ex.statut === 'valide') return res.status(400).json({ error: 'Cadeau déjà reçu' });
+    if (ex && ex.statut === 'en_attente') return res.status(400).json({ error: 'Cadeau déjà réclamé, en attente de confirmation' });
 
-    if (existing) {
-      const { error } = await supabase
-        .from('cadeaux_vip')
-        .update({ statut: 'en_attente', montant: level.cadeau, date_demande: new Date().toISOString(), date_traitement: null })
-        .eq('id', existing.id);
-      if (error) throw error;
+    if (ex) {
+      await query(
+        "UPDATE cadeaux_vip SET statut='en_attente', montant=$1, date_demande=NOW(), date_traitement=NULL WHERE id=$2",
+        [level.cadeau, ex.id]
+      );
     } else {
-      const { error } = await supabase
-        .from('cadeaux_vip')
-        .insert({ user_id: userId, niveau, montant: level.cadeau, statut: 'en_attente' });
-      if (error) {
-        if (error.code === '23505') {
-          return res.status(400).json({ error: 'Cadeau déjà réclamé' });
-        }
-        throw error;
+      try {
+        await query(
+          "INSERT INTO cadeaux_vip (user_id, niveau, montant, statut) VALUES ($1, $2, $3, 'en_attente')",
+          [userId, niveau, level.cadeau]
+        );
+      } catch (err) {
+        if (err.code === '23505') return res.status(400).json({ error: 'Cadeau déjà réclamé' });
+        throw err;
       }
     }
 
@@ -205,13 +212,11 @@ router.post('/claim-gift', authMiddleware, async (req, res) => {
 
 router.get('/revenue-history', authMiddleware, async (req, res) => {
   try {
-    const { data: history } = await supabase
-      .from('historique_revenus')
-      .select('*')
-      .eq('user_id', req.user.id)
-      .order('date_paiement', { ascending: false })
-      .limit(50);
-    res.json({ history: history || [] });
+    const { rows } = await query(
+      'SELECT * FROM historique_revenus WHERE user_id = $1 ORDER BY date_paiement DESC LIMIT 50',
+      [req.user.id]
+    );
+    res.json({ history: rows });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }

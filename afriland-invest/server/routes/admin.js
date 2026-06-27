@@ -1,5 +1,5 @@
 const express = require('express');
-const { supabase } = require('../db');
+const { query, withTransaction } = require('../db');
 const { adminMiddleware } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
@@ -12,56 +12,42 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
-// ─── STATS ───────────────────────────────────────────────────────────────────
-
 router.get('/stats', adminMiddleware, async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
-    const [
-      { count: usersCount },
-      { data: depotsValides },
-      { data: retraitsValides },
-      { count: commandesActifCount },
-      { count: depotsAttenteCount },
-      { count: retraitsAttenteCount },
-      { data: commandesUsersData },
-    ] = await Promise.all([
-      supabase.from('utilisateurs').select('*', { count: 'exact', head: true }),
-      supabase.from('depots').select('montant').eq('statut', 'valide'),
-      supabase.from('retraits').select('montant').eq('statut', 'valide'),
-      supabase.from('commandes').select('*', { count: 'exact', head: true }).eq('statut', 'actif'),
-      supabase.from('depots').select('*', { count: 'exact', head: true }).eq('statut', 'en_attente'),
-      supabase.from('retraits').select('*', { count: 'exact', head: true }).eq('statut', 'en_attente'),
-      supabase.from('commandes').select('user_id').eq('statut', 'actif').gte('date_fin', today),
+    const [usersRes, depotsValidesRes, retraitsValidesRes, commandesActifRes, depotsAttenteRes, retraitsAttenteRes, commandesUsersRes] = await Promise.all([
+      query('SELECT COUNT(*) FROM utilisateurs'),
+      query("SELECT montant FROM depots WHERE statut = 'valide'"),
+      query("SELECT montant FROM retraits WHERE statut = 'valide'"),
+      query("SELECT COUNT(*) FROM commandes WHERE statut = 'actif'"),
+      query("SELECT COUNT(*) FROM depots WHERE statut = 'en_attente'"),
+      query("SELECT COUNT(*) FROM retraits WHERE statut = 'en_attente'"),
+      query("SELECT DISTINCT user_id FROM commandes WHERE statut = 'actif' AND date_fin >= $1", [today]),
     ]);
-    const totalDepots = (depotsValides || []).reduce((s, d) => s + parseFloat(d.montant || 0), 0);
-    const totalRetraits = (retraitsValides || []).reduce((s, r) => s + parseFloat(r.montant || 0), 0);
-    const usersAvecInvestissement = new Set((commandesUsersData || []).map(c => c.user_id)).size;
+
+    const totalDepots = depotsValidesRes.rows.reduce((s, d) => s + parseFloat(d.montant || 0), 0);
+    const totalRetraits = retraitsValidesRes.rows.reduce((s, r) => s + parseFloat(r.montant || 0), 0);
+
     res.json({
-      users: { count: usersCount || 0 },
-      depots: { total: totalDepots, en_attente: depotsAttenteCount || 0 },
-      retraits: { total: totalRetraits, en_attente: retraitsAttenteCount || 0 },
-      commandes: { count: commandesActifCount || 0 },
-      users_avec_investissement: usersAvecInvestissement,
+      users: { count: parseInt(usersRes.rows[0].count) },
+      depots: { total: totalDepots, en_attente: parseInt(depotsAttenteRes.rows[0].count) },
+      retraits: { total: totalRetraits, en_attente: parseInt(retraitsAttenteRes.rows[0].count) },
+      commandes: { count: parseInt(commandesActifRes.rows[0].count) },
+      users_avec_investissement: commandesUsersRes.rows.length,
     });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
-// ─── UTILISATEURS ─────────────────────────────────────────────────────────────
-
 router.get('/users', adminMiddleware, async (req, res) => {
   try {
-    const { data: users } = await supabase
-      .from('utilisateurs')
-      .select('id,nom,telephone,pays,date_inscription,role, soldes(solde)')
-      .order('date_inscription', { ascending: false })
-      .limit(100);
-    const result = (users || []).map(u => ({
-      ...u, solde: u.soldes?.[0]?.solde || 0, soldes: undefined,
-    }));
-    res.json({ users: result });
+    const { rows } = await query(
+      `SELECT u.id, u.nom, u.telephone, u.pays, u.date_inscription, u.role, s.solde
+       FROM utilisateurs u LEFT JOIN soldes s ON s.user_id = u.id
+       ORDER BY u.date_inscription DESC LIMIT 100`
+    );
+    res.json({ users: rows });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
@@ -72,30 +58,34 @@ router.put('/users/:id/credit', adminMiddleware, async (req, res) => {
     const { montant } = req.body;
     const userId = parseInt(req.params.id);
     if (!montant || isNaN(montant)) return res.status(400).json({ error: 'Montant invalide' });
-    const { data: result, error } = await supabase.rpc('credit_user', {
-      p_user_id: userId, p_montant: parseFloat(montant),
+    const montantNum = parseFloat(montant);
+    if (montantNum <= 0) return res.status(400).json({ error: 'Montant invalide' });
+
+    await withTransaction(async (client) => {
+      await client.query(
+        `INSERT INTO soldes (user_id, solde, date_maj) VALUES ($1, $2, NOW())
+         ON CONFLICT (user_id) DO UPDATE SET solde = soldes.solde + $2, date_maj = NOW()`,
+        [userId, montantNum]
+      );
+      await client.query(
+        "INSERT INTO historique_revenus (user_id, montant, type) VALUES ($1, $2, 'credit_admin')",
+        [userId, montantNum]
+      );
     });
-    if (error) throw error;
-    if (result?.error) return res.status(400).json({ error: result.error });
+
     res.json({ success: true, message: 'Crédit effectué' });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
-// ─── DÉPÔTS ───────────────────────────────────────────────────────────────────
-
 router.get('/depots', adminMiddleware, async (req, res) => {
   try {
-    const { data: depots } = await supabase
-      .from('depots')
-      .select('*, utilisateurs(nom, telephone)')
-      .order('date_depot', { ascending: false })
-      .limit(100);
-    const result = (depots || []).map(d => ({
-      ...d, nom: d.utilisateurs?.nom, telephone: d.utilisateurs?.telephone, utilisateurs: undefined,
-    }));
-    res.json({ depots: result });
+    const { rows } = await query(
+      `SELECT d.*, u.nom, u.telephone FROM depots d JOIN utilisateurs u ON d.user_id = u.id
+       ORDER BY d.date_depot DESC LIMIT 100`
+    );
+    res.json({ depots: rows });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
@@ -103,9 +93,22 @@ router.get('/depots', adminMiddleware, async (req, res) => {
 
 router.put('/depots/:id/validate', adminMiddleware, async (req, res) => {
   try {
-    const { data: result, error } = await supabase.rpc('validate_depot', { p_depot_id: parseInt(req.params.id) });
-    if (error) throw error;
-    if (result?.error) return res.status(400).json({ error: result.error });
+    const depotId = parseInt(req.params.id);
+    const result = await withTransaction(async (client) => {
+      const depotRes = await client.query("SELECT * FROM depots WHERE id = $1 AND statut = 'en_attente'", [depotId]);
+      if (!depotRes.rows[0]) return { error: 'Dépôt non trouvé ou déjà traité' };
+      const depot = depotRes.rows[0];
+
+      await client.query("UPDATE depots SET statut = 'valide', date_traitement = NOW() WHERE id = $1", [depotId]);
+      await client.query(
+        `INSERT INTO soldes (user_id, solde, date_maj) VALUES ($1, $2, NOW())
+         ON CONFLICT (user_id) DO UPDATE SET solde = soldes.solde + $2, date_maj = NOW()`,
+        [depot.user_id, depot.montant]
+      );
+      return { success: true };
+    });
+
+    if (result.error) return res.status(400).json({ error: result.error });
     res.json({ success: true, message: 'Dépôt validé' });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
@@ -114,30 +117,20 @@ router.put('/depots/:id/validate', adminMiddleware, async (req, res) => {
 
 router.put('/depots/:id/reject', adminMiddleware, async (req, res) => {
   try {
-    const { error } = await supabase
-      .from('depots')
-      .update({ statut: 'rejete', date_traitement: new Date().toISOString() })
-      .eq('id', req.params.id);
-    if (error) throw error;
+    await query("UPDATE depots SET statut = 'rejete', date_traitement = NOW() WHERE id = $1", [req.params.id]);
     res.json({ success: true, message: 'Dépôt rejeté' });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
-// ─── RETRAITS ────────────────────────────────────────────────────────────────
-
 router.get('/retraits', adminMiddleware, async (req, res) => {
   try {
-    const { data: retraits } = await supabase
-      .from('retraits')
-      .select('*, utilisateurs(nom, telephone)')
-      .order('date_demande', { ascending: false })
-      .limit(100);
-    const result = (retraits || []).map(r => ({
-      ...r, nom: r.utilisateurs?.nom, telephone: r.utilisateurs?.telephone, utilisateurs: undefined,
-    }));
-    res.json({ retraits: result });
+    const { rows } = await query(
+      `SELECT r.*, u.nom, u.telephone FROM retraits r JOIN utilisateurs u ON r.user_id = u.id
+       ORDER BY r.date_demande DESC LIMIT 100`
+    );
+    res.json({ retraits: rows });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
@@ -145,11 +138,7 @@ router.get('/retraits', adminMiddleware, async (req, res) => {
 
 router.put('/retraits/:id/validate', adminMiddleware, async (req, res) => {
   try {
-    const { error } = await supabase
-      .from('retraits')
-      .update({ statut: 'valide', date_traitement: new Date().toISOString() })
-      .eq('id', req.params.id);
-    if (error) throw error;
+    await query("UPDATE retraits SET statut = 'valide', date_traitement = NOW() WHERE id = $1", [req.params.id]);
     res.json({ success: true, message: 'Retrait validé' });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
@@ -158,28 +147,31 @@ router.put('/retraits/:id/validate', adminMiddleware, async (req, res) => {
 
 router.put('/retraits/:id/reject', adminMiddleware, async (req, res) => {
   try {
-    const { data: result, error } = await supabase.rpc('reject_retrait', { p_retrait_id: parseInt(req.params.id) });
-    if (error) throw error;
-    if (result?.error) return res.status(400).json({ error: result.error });
+    const retraitId = parseInt(req.params.id);
+    const result = await withTransaction(async (client) => {
+      const retraitRes = await client.query("SELECT * FROM retraits WHERE id = $1 AND statut = 'en_attente'", [retraitId]);
+      if (!retraitRes.rows[0]) return { error: 'Retrait non trouvé ou déjà traité' };
+      const retrait = retraitRes.rows[0];
+
+      await client.query("UPDATE retraits SET statut = 'rejete', date_traitement = NOW() WHERE id = $1", [retraitId]);
+      await client.query('UPDATE soldes SET solde = solde + $1, date_maj = NOW() WHERE user_id = $2', [retrait.montant, retrait.user_id]);
+      return { success: true };
+    });
+
+    if (result.error) return res.status(400).json({ error: result.error });
     res.json({ success: true, message: 'Retrait rejeté, solde remboursé' });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
-// ─── CADEAUX VIP ──────────────────────────────────────────────────────────────
-
 router.get('/cadeaux', adminMiddleware, async (req, res) => {
   try {
-    const { data: cadeaux } = await supabase
-      .from('cadeaux_vip')
-      .select('*, utilisateurs(nom, telephone)')
-      .order('date_demande', { ascending: false })
-      .limit(100);
-    const result = (cadeaux || []).map(c => ({
-      ...c, nom: c.utilisateurs?.nom, telephone: c.utilisateurs?.telephone, utilisateurs: undefined,
-    }));
-    res.json({ cadeaux: result });
+    const { rows } = await query(
+      `SELECT c.*, u.nom, u.telephone FROM cadeaux_vip c JOIN utilisateurs u ON c.user_id = u.id
+       ORDER BY c.date_demande DESC LIMIT 100`
+    );
+    res.json({ cadeaux: rows });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
@@ -187,9 +179,28 @@ router.get('/cadeaux', adminMiddleware, async (req, res) => {
 
 router.put('/cadeaux/:id/validate', adminMiddleware, async (req, res) => {
   try {
-    const { data: result, error } = await supabase.rpc('validate_cadeau_vip', { p_cadeau_id: parseInt(req.params.id) });
-    if (error) throw error;
-    if (result?.error) return res.status(400).json({ error: result.error });
+    const cadeauId = parseInt(req.params.id);
+    const result = await withTransaction(async (client) => {
+      const res = await client.query(
+        "UPDATE cadeaux_vip SET statut = 'valide', date_traitement = NOW() WHERE id = $1 AND statut = 'en_attente' RETURNING *",
+        [cadeauId]
+      );
+      if (!res.rows[0]) return { error: 'Cadeau non trouvé ou déjà traité' };
+      const cadeau = res.rows[0];
+
+      await client.query(
+        `INSERT INTO soldes (user_id, solde, date_maj) VALUES ($1, $2, NOW())
+         ON CONFLICT (user_id) DO UPDATE SET solde = soldes.solde + $2, date_maj = NOW()`,
+        [cadeau.user_id, cadeau.montant]
+      );
+      await client.query(
+        "INSERT INTO historique_revenus (user_id, montant, type) VALUES ($1, $2, 'cadeau_vip')",
+        [cadeau.user_id, cadeau.montant]
+      );
+      return { success: true };
+    });
+
+    if (result.error) return res.status(400).json({ error: result.error });
     res.json({ success: true, message: 'Cadeau validé et crédité' });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
@@ -198,35 +209,24 @@ router.put('/cadeaux/:id/validate', adminMiddleware, async (req, res) => {
 
 router.put('/cadeaux/:id/reject', adminMiddleware, async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('cadeaux_vip')
-      .update({ statut: 'rejete', date_traitement: new Date().toISOString() })
-      .eq('id', req.params.id)
-      .eq('statut', 'en_attente')
-      .select('id');
-    if (error) throw error;
-    if (!data || data.length === 0) {
-      return res.status(400).json({ error: 'Cadeau non trouvé ou déjà traité' });
-    }
+    const { rows } = await query(
+      "UPDATE cadeaux_vip SET statut = 'rejete', date_traitement = NOW() WHERE id = $1 AND statut = 'en_attente' RETURNING id",
+      [req.params.id]
+    );
+    if (rows.length === 0) return res.status(400).json({ error: 'Cadeau non trouvé ou déjà traité' });
     res.json({ success: true, message: 'Cadeau rejeté' });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
-// ─── POSTS ────────────────────────────────────────────────────────────────────
-
 router.get('/posts', adminMiddleware, async (req, res) => {
   try {
-    const { data: posts } = await supabase
-      .from('posts')
-      .select('*, utilisateurs(nom)')
-      .order('date_creation', { ascending: false })
-      .limit(50);
-    const result = (posts || []).map(p => ({
-      ...p, nom: p.utilisateurs?.nom, utilisateurs: undefined,
-    }));
-    res.json({ posts: result });
+    const { rows } = await query(
+      `SELECT p.*, u.nom FROM posts p JOIN utilisateurs u ON p.user_id = u.id
+       ORDER BY p.date_creation DESC LIMIT 50`
+    );
+    res.json({ posts: rows });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
@@ -235,15 +235,12 @@ router.get('/posts', adminMiddleware, async (req, res) => {
 router.put('/posts/:id/:action', adminMiddleware, async (req, res) => {
   try {
     const statut = req.params.action === 'validate' ? 'valide' : 'refuse';
-    const { error } = await supabase.from('posts').update({ statut }).eq('id', req.params.id);
-    if (error) throw error;
+    await query('UPDATE posts SET statut = $1 WHERE id = $2', [statut, req.params.id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
-
-// ─── PARAMÈTRES ───────────────────────────────────────────────────────────────
 
 const SETTINGS_DEFAULTS = {
   min_depot: '500',
@@ -254,12 +251,9 @@ const SETTINGS_DEFAULTS = {
 
 router.get('/settings', adminMiddleware, async (req, res) => {
   try {
-    const { data, error } = await supabase.from('settings').select('cle,valeur,description');
-    if (error) {
-      return res.json({ settings: { ...SETTINGS_DEFAULTS } });
-    }
+    const { rows } = await query('SELECT cle,valeur,description FROM settings');
     const map = { ...SETTINGS_DEFAULTS };
-    (data || []).forEach(s => { map[s.cle] = s.valeur; });
+    rows.forEach((s) => { map[s.cle] = s.valeur; });
     res.json({ settings: map });
   } catch (err) {
     res.json({ settings: { ...SETTINGS_DEFAULTS } });
@@ -278,17 +272,11 @@ router.put('/settings', adminMiddleware, async (req, res) => {
       }
     }
 
-    const { error } = await supabase
-      .from('settings')
-      .upsert(
-        { cle, valeur: String(valeur), date_maj: new Date().toISOString() },
-        { onConflict: 'cle' }
-      );
-
-    if (error) {
-      console.error('Settings upsert error:', JSON.stringify(error));
-      return res.status(500).json({ error: `Erreur: ${error.message || error.code || 'Table settings manquante'}` });
-    }
+    await query(
+      `INSERT INTO settings (cle, valeur, date_maj) VALUES ($1, $2, NOW())
+       ON CONFLICT (cle) DO UPDATE SET valeur = $2, date_maj = NOW()`,
+      [cle, String(valeur)]
+    );
     res.json({ success: true });
   } catch (err) {
     console.error('Settings catch:', err);
@@ -296,15 +284,10 @@ router.put('/settings', adminMiddleware, async (req, res) => {
   }
 });
 
-// ─── PLANS D'INVESTISSEMENT ───────────────────────────────────────────────────
-
 router.get('/plans', adminMiddleware, async (req, res) => {
   try {
-    const { data: plans } = await supabase
-      .from('planinvestissement')
-      .select('*')
-      .order('serie', { ascending: true });
-    res.json({ plans: plans || [] });
+    const { rows } = await query('SELECT * FROM planinvestissement ORDER BY serie ASC');
+    res.json({ plans: rows });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
@@ -316,12 +299,11 @@ router.post('/plans', adminMiddleware, async (req, res) => {
     if (!nom || !prix || !duree_jours || !rendement_journalier) {
       return res.status(400).json({ error: 'Tous les champs sont requis' });
     }
-    const { data, error } = await supabase
-      .from('planinvestissement')
-      .insert({ nom, prix: parseFloat(prix), duree_jours: parseInt(duree_jours), rendement_journalier: parseFloat(rendement_journalier) })
-      .select().single();
-    if (error) throw error;
-    res.json({ success: true, plan: data });
+    const { rows } = await query(
+      'INSERT INTO planinvestissement (nom, prix, duree_jours, rendement_journalier, serie) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [nom, parseFloat(prix), parseInt(duree_jours), parseFloat(rendement_journalier), 'X']
+    );
+    res.json({ success: true, plan: rows[0] });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
@@ -330,11 +312,10 @@ router.post('/plans', adminMiddleware, async (req, res) => {
 router.put('/plans/:id', adminMiddleware, async (req, res) => {
   try {
     const { nom, prix, duree_jours, rendement_journalier } = req.body;
-    const { error } = await supabase
-      .from('planinvestissement')
-      .update({ nom, prix: parseFloat(prix), duree_jours: parseInt(duree_jours), rendement_journalier: parseFloat(rendement_journalier) })
-      .eq('id', req.params.id);
-    if (error) throw error;
+    await query(
+      'UPDATE planinvestissement SET nom=$1, prix=$2, duree_jours=$3, rendement_journalier=$4 WHERE id=$5',
+      [nom, parseFloat(prix), parseInt(duree_jours), parseFloat(rendement_journalier), req.params.id]
+    );
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
@@ -343,26 +324,19 @@ router.put('/plans/:id', adminMiddleware, async (req, res) => {
 
 router.delete('/plans/:id', adminMiddleware, async (req, res) => {
   try {
-    const { error } = await supabase.from('planinvestissement').delete().eq('id', req.params.id);
-    if (error) throw error;
+    await query('DELETE FROM planinvestissement WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
-// ─── ANNONCES ────────────────────────────────────────────────────────────────
-
 router.get('/annonces', adminMiddleware, async (req, res) => {
   try {
-    const { data: annonces, error } = await supabase
-      .from('annonces')
-      .select('*')
-      .order('date_creation', { ascending: false });
-    if (error) return res.json({ annonces: [] });
-    res.json({ annonces: annonces || [] });
+    const { rows } = await query('SELECT * FROM annonces ORDER BY date_creation DESC');
+    res.json({ annonces: rows });
   } catch (err) {
-    res.status(500).json({ error: 'Erreur serveur' });
+    res.json({ annonces: [] });
   }
 });
 
@@ -372,16 +346,11 @@ router.post('/annonces', adminMiddleware, upload.single('image'), async (req, re
     const couleur = req.body.couleur || '#22c55e';
     const actif = req.body.actif !== 'false';
 
-    const { data, error } = await supabase
-      .from('annonces')
-      .insert({ titre: '', contenu: '', image, couleur, actif })
-      .select().single();
-
-    if (error) {
-      console.error('Annonce insert error:', JSON.stringify(error));
-      return res.status(500).json({ error: `Erreur: ${error.message || 'Erreur inconnue'}` });
-    }
-    res.json({ success: true, annonce: data });
+    const { rows } = await query(
+      "INSERT INTO annonces (titre, contenu, image, couleur, actif) VALUES ('', '', $1, $2, $3) RETURNING *",
+      [image, couleur, actif]
+    );
+    res.json({ success: true, annonce: rows[0] });
   } catch (err) {
     console.error('Annonce catch:', err);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -391,11 +360,14 @@ router.post('/annonces', adminMiddleware, upload.single('image'), async (req, re
 router.put('/annonces/:id', adminMiddleware, async (req, res) => {
   try {
     const { actif, couleur } = req.body;
-    const updates = { date_maj: new Date().toISOString() };
-    if (actif !== undefined) updates.actif = actif;
-    if (couleur !== undefined) updates.couleur = couleur;
-    const { error } = await supabase.from('annonces').update(updates).eq('id', req.params.id);
-    if (error) throw error;
+    const updates = [];
+    const vals = [];
+    let idx = 1;
+    if (actif !== undefined) { updates.push(`actif = $${idx++}`); vals.push(actif); }
+    if (couleur !== undefined) { updates.push(`couleur = $${idx++}`); vals.push(couleur); }
+    updates.push(`date_maj = NOW()`);
+    vals.push(req.params.id);
+    await query(`UPDATE annonces SET ${updates.join(', ')} WHERE id = $${idx}`, vals);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
@@ -404,8 +376,7 @@ router.put('/annonces/:id', adminMiddleware, async (req, res) => {
 
 router.delete('/annonces/:id', adminMiddleware, async (req, res) => {
   try {
-    const { error } = await supabase.from('annonces').delete().eq('id', req.params.id);
-    if (error) throw error;
+    await query('DELETE FROM annonces WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });

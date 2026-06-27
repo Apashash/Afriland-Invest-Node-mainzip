@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { supabase } = require('../db');
+const { query, withTransaction } = require('../db');
 const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'afriland_secret_2024';
@@ -29,13 +29,10 @@ router.post('/login', async (req, res) => {
 
     const full_tel = indicatif + telephone.replace(/\D/g, '');
 
-    const { data: user, error } = await supabase
-      .from('utilisateurs')
-      .select('*')
-      .eq('telephone', full_tel)
-      .single();
+    const { rows } = await query('SELECT * FROM utilisateurs WHERE telephone = $1', [full_tel]);
+    const user = rows[0];
 
-    if (error || !user) {
+    if (!user) {
       return res.status(401).json({ error: 'Aucun compte trouvé avec ce numéro' });
     }
 
@@ -81,61 +78,42 @@ router.post('/register', async (req, res) => {
 
     const full_tel = indicatif + telephone.replace(/\D/g, '');
 
-    const { data: existing } = await supabase
-      .from('utilisateurs')
-      .select('id')
-      .eq('telephone', full_tel)
-      .maybeSingle();
-
-    if (existing) {
+    const existing = await query('SELECT id FROM utilisateurs WHERE telephone = $1', [full_tel]);
+    if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'Ce numéro est déjà enregistré' });
     }
 
     const hashedPassword = await bcrypt.hash(mot_de_passe, 10);
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const appUrl = process.env.APP_URL || `https://${process.env.REPLIT_DEV_DOMAIN || 'localhost:5000'}`;
 
     let parrain_id = null;
     if (code_parrain) {
-      const { data: parrain } = await supabase
-        .from('utilisateurs')
-        .select('id')
-        .eq('code_parrainage', code_parrain.toUpperCase())
-        .maybeSingle();
-      if (parrain) parrain_id = parrain.id;
+      const parrainRes = await query('SELECT id FROM utilisateurs WHERE code_parrainage = $1', [code_parrain.toUpperCase()]);
+      if (parrainRes.rows.length > 0) parrain_id = parrainRes.rows[0].id;
     }
 
-    const { data: newUser, error: insertError } = await supabase
-      .from('utilisateurs')
-      .insert({
-        nom,
-        telephone: full_tel,
-        pays: pays || PAYS_ELIGIBLES[indicatif],
-        mot_de_passe: hashedPassword,
-        solde: 0,
-        revenus_totaux: 0,
-        nombre_filleuls: 0,
-        code_parrainage: code,
-        parrain_id,
-        lien_parrainage: `${appUrl}?p=${code}`,
-        role: 'user',
-      })
-      .select()
-      .single();
+    const newUser = await withTransaction(async (client) => {
+      const insertRes = await client.query(
+        `INSERT INTO utilisateurs (nom, telephone, pays, mot_de_passe, solde, revenus_totaux, nombre_filleuls, code_parrainage, parrain_id, lien_parrainage, role)
+         VALUES ($1, $2, $3, $4, 0, 0, 0, $5, $6, $7, 'user') RETURNING *`,
+        [nom, full_tel, pays || PAYS_ELIGIBLES[indicatif], hashedPassword, code, parrain_id, `${appUrl}?p=${code}`]
+      );
+      const user = insertRes.rows[0];
 
-    if (insertError) throw insertError;
+      await Promise.all([
+        client.query('INSERT INTO soldes (user_id, solde) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING', [user.id]),
+        client.query('INSERT INTO vip (user_id, niveau, pourcentage, invitations_requises, invitations_actuelles) VALUES ($1, 0, 0, 3, 0) ON CONFLICT (user_id) DO NOTHING', [user.id]),
+        client.query('INSERT INTO filleuls (user_id, gains_totaux) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING', [user.id]),
+        client.query('INSERT INTO roue (user_id, nombre_tours, dernier_gain) VALUES ($1, 0, 0) ON CONFLICT (user_id) DO NOTHING', [user.id]),
+      ]);
 
-    // Initialiser les tables liées
-    await Promise.all([
-      supabase.from('soldes').upsert({ user_id: newUser.id, solde: 0 }, { onConflict: 'user_id' }),
-      supabase.from('vip').upsert({ user_id: newUser.id, niveau: 0, pourcentage: 0, invitations_requises: 3, invitations_actuelles: 0 }, { onConflict: 'user_id' }),
-      supabase.from('filleuls').upsert({ user_id: newUser.id, gains_totaux: 0 }, { onConflict: 'user_id' }),
-      supabase.from('roue').upsert({ user_id: newUser.id, nombre_tours: 0 }, { onConflict: 'user_id' }),
-    ]);
+      if (parrain_id) {
+        await client.query('UPDATE utilisateurs SET nombre_filleuls = nombre_filleuls + 1 WHERE id = $1', [parrain_id]);
+      }
 
-    if (parrain_id) {
-      await supabase.rpc('increment_filleuls', { p_user_id: parrain_id });
-    }
+      return user;
+    });
 
     const token = jwt.sign(
       { id: newUser.id, nom: newUser.nom, telephone: newUser.telephone, role: 'user' },

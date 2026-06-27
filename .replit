@@ -24,13 +24,13 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "webview"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd afriland-invest && node server/index.js"
 waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "webview"
 
 [agent]
 stack = "BEST_EFFORT_FALLBACK"
@@ -54,4 +54,4 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-JWT_SECRET = "afriland_invest_replit_2024_secure"
+JWT_SECRET = "afriland_invest_secret_2024_replit"

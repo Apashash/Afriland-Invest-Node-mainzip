@@ -1,12 +1,10 @@
 const path = require('path');
-require('dotenv').config({ path: path.join(process.cwd(), '.env') });
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 
-const { supabase } = require('./db');
-const { UPLOADS_DIR, CLIENT_DIST } = require('./config');
+const { CLIENT_DIST, UPLOADS_DIR } = require('./config');
 
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
@@ -63,12 +61,6 @@ process.on('unhandledRejection', (reason) => {
   console.error('❌ Unhandled Rejection:', reason);
 });
 
-app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`AFRILAND INVEST server running on port ${PORT}`);
-  try {
-    const { count } = await supabase.from('utilisateurs').select('*', { count: 'exact', head: true });
-    console.log(`✅ Supabase connecté — ${count || 0} utilisateur(s) en base`);
-  } catch (err) {
-    console.error('❌ Erreur vérification Supabase:', err.message);
-  }
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ AFRILAND INVEST server running on port ${PORT}`);
 });
