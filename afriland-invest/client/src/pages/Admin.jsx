@@ -1311,6 +1311,57 @@ export default function Admin() {
           <div>
             <SectionHeader icon="fa-cog" title="Paramètres" />
 
+            {/* ── Retrait ON/OFF ── */}
+            {(() => {
+              const isOff = settings.retrait_off === '1';
+              const toggle = async () => {
+                const newVal = isOff ? '0' : '1';
+                try {
+                  await api.put('/admin/settings', { cle: 'retrait_off', valeur: newVal });
+                  setSettings(s => ({ ...s, retrait_off: newVal }));
+                  toast.success(newVal === '1' ? '🔴 Retraits suspendus' : '🟢 Retraits réactivés');
+                } catch { toast.error('Erreur'); }
+              };
+              return (
+                <div onClick={toggle} style={{
+                  background: isOff ? '#FF3B30' : '#34C759',
+                  borderRadius: 16, padding: '18px 16px', marginBottom: 14,
+                  boxShadow: isOff ? '0 4px 20px rgba(255,59,48,0.35)' : '0 4px 20px rgba(52,199,89,0.25)',
+                  cursor: 'pointer', transition: 'all .2s',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <i className={`fas ${isOff ? 'fa-ban' : 'fa-check-circle'}`} style={{ color: '#fff', fontSize: 20 }} />
+                    </div>
+                    <div>
+                      <p style={{ fontWeight: 800, fontSize: 15, color: '#fff' }}>
+                        {isOff ? 'Retraits SUSPENDUS' : 'Retraits ACTIFS'}
+                      </p>
+                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)' }}>
+                        {isOff ? 'Cliquer pour réactiver les retraits' : 'Cliquer pour suspendre tous les retraits'}
+                      </p>
+                    </div>
+                  </div>
+                  {/* Toggle switch */}
+                  <div style={{
+                    width: 52, height: 28, borderRadius: 50,
+                    background: isOff ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.4)',
+                    position: 'relative', flexShrink: 0,
+                  }}>
+                    <div style={{
+                      position: 'absolute', top: 3,
+                      left: isOff ? 3 : 25,
+                      width: 22, height: 22, borderRadius: '50%',
+                      background: '#fff',
+                      transition: 'left .2s',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                    }} />
+                  </div>
+                </div>
+              );
+            })()}
+
             <div style={{ background: '#fff', borderRadius: 16, padding: '18px 16px', marginBottom: 14, boxShadow: 'var(--shadow-card)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <div style={{ width: 34, height: 34, borderRadius: 10, background: '#FF950020', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

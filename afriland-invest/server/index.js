@@ -91,10 +91,11 @@ app.get('/api/settings/public', async (req, res) => {
     retrait_jours: '1,2,3,4,5,6',
     retrait_heure_debut: '9',
     retrait_heure_fin: '19',
+    retrait_off: '0',
   };
   try {
     const { rows } = await pool.query(
-      "SELECT cle, valeur FROM settings WHERE cle IN ('min_depot','min_retrait','retrait_max_par_jour','retrait_jours','retrait_heure_debut','retrait_heure_fin')"
+      "SELECT cle, valeur FROM settings WHERE cle IN ('min_depot','min_retrait','retrait_max_par_jour','retrait_jours','retrait_heure_debut','retrait_heure_fin','retrait_off')"
     );
     const map = { ...DEFAULTS };
     rows.forEach(r => { map[r.cle] = r.valeur; });

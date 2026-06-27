@@ -24,6 +24,12 @@ router.post('/request', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Montant et mot de passe requis' });
     }
 
+    // Vérifier si les retraits sont désactivés par l'admin
+    const offRes = await query("SELECT valeur FROM settings WHERE cle = 'retrait_off'").catch(() => ({ rows: [] }));
+    if (offRes.rows[0]?.valeur === '1') {
+      return res.status(403).json({ error: 'Les retraits sont temporairement suspendus. Veuillez réessayer plus tard.' });
+    }
+
     // Lire les horaires configurés par l'admin
     const scheduleRes = await query(
       "SELECT cle, valeur FROM settings WHERE cle IN ('retrait_jours','retrait_heure_debut','retrait_heure_fin')"

@@ -33,6 +33,7 @@ export default function Withdrawal() {
   const [tab, setTab] = useState('form');
   const [minRetrait, setMinRetrait] = useState(2000);
   const [retraitSchedule, setRetraitSchedule] = useState({ jours: '1,2,3,4,5,6', heureDebut: '9', heureFin: '19', maxParJour: '1' });
+  const [retraitOff, setRetraitOff] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => { loadData(); }, []);
@@ -53,6 +54,7 @@ export default function Withdrawal() {
         heureFin: settingsRes.data.retrait_heure_fin || '19',
         maxParJour: settingsRes.data.retrait_max_par_jour || '1',
       });
+      setRetraitOff(settingsRes.data.retrait_off === '1');
     } catch { toast.error('Erreur de chargement'); }
     finally { setLoading(false); }
   };
@@ -149,6 +151,26 @@ export default function Withdrawal() {
       {/* ─── FORMULAIRE ─── */}
       {tab === 'form' && (
         <div style={{ margin: '0 16px' }}>
+
+          {/* Banner suspension */}
+          {retraitOff && (
+            <div style={{
+              background: 'linear-gradient(135deg, #FF3B30, #CC0000)',
+              borderRadius: 20, padding: '16px 18px', marginBottom: 14,
+              boxShadow: '0 4px 20px rgba(255,59,48,0.35)',
+              display: 'flex', alignItems: 'center', gap: 14,
+            }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <i className="fas fa-ban" style={{ color: '#fff', fontSize: 20 }} />
+              </div>
+              <div>
+                <p style={{ fontWeight: 800, fontSize: 15, color: '#fff', marginBottom: 3 }}>Retraits suspendus</p>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', lineHeight: 1.5 }}>
+                  Les retraits sont temporairement indisponibles. Veuillez réessayer plus tard.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Conditions */}
           <div style={{

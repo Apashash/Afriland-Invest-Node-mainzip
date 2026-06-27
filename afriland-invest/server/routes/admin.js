@@ -421,6 +421,7 @@ const SETTINGS_DEFAULTS = {
   retrait_jours: '1,2,3,4,5,6',
   retrait_heure_debut: '9',
   retrait_heure_fin: '19',
+  retrait_off: '0',
 };
 
 router.get('/settings', adminMiddleware, async (req, res) => {
