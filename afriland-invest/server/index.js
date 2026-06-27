@@ -5,6 +5,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 
+const { supabase } = require('./db');
+
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const investmentRoutes = require('./routes/investment');
@@ -39,11 +41,12 @@ app.use('/api/annonces', annoncesRoutes);
 app.use('/api/transactions', transactionsRoutes);
 
 const clientBuildPath = path.join(__dirname, '../client/dist');
-app.use(express.static(clientBuildPath));
+app.use(express.static(clientBuildPath, { etag: false, lastModified: false }));
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ error: 'Route non trouvée' });
   }
+  res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
 
@@ -52,9 +55,20 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Erreur serveur interne' });
 });
 
-const { supabase } = require('./db');
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('❌ Unhandled Rejection:', reason);
+});
+
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`AFRILAND INVEST server running on port ${PORT}`);
-  const { count } = await supabase.from('utilisateurs').select('*', { count: 'exact', head: true });
-  console.log(`✅ Supabase connecté — ${count || 0} utilisateur(s) en base`);
+  try {
+    const { count } = await supabase.from('utilisateurs').select('*', { count: 'exact', head: true });
+    console.log(`✅ Supabase connecté — ${count || 0} utilisateur(s) en base`);
+  } catch (err) {
+    console.error('❌ Erreur vérification Supabase:', err.message);
+  }
 });
