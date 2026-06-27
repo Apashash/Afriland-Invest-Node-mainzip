@@ -68,8 +68,8 @@ router.get('/profile', authMiddleware, async (req, res) => {
     const [userRes, soldeRes, depotsRes, retraitsRes] = await Promise.all([
       query('SELECT id,nom,telephone,pays,code_parrainage,lien_parrainage,date_inscription,role FROM utilisateurs WHERE id = $1', [userId]),
       query('SELECT solde FROM soldes WHERE user_id = $1', [userId]),
-      query("SELECT COALESCE(SUM(montant),0) AS total FROM depots WHERE user_id = $1 AND statut = 'approuve'", [userId]),
-      query("SELECT COALESCE(SUM(montant),0) AS total FROM retraits WHERE user_id = $1 AND statut = 'approuve'", [userId]),
+      query("SELECT COALESCE(SUM(montant),0) AS total FROM depots WHERE user_id = $1 AND statut = 'valide'", [userId]),
+      query("SELECT COALESCE(SUM(montant),0) AS total FROM retraits WHERE user_id = $1 AND statut = 'valide'", [userId]),
     ]);
     res.json({
       user: userRes.rows[0],

@@ -23,38 +23,44 @@ var require_db = __commonJS({
   "server/db.js"(exports2, module2) {
     "use strict";
     var { Pool } = require("pg");
-    function buildConnectionString() {
-      if (process.env.DATABASE_URL) return { url: process.env.DATABASE_URL, source: "DATABASE_URL" };
-      if (process.env.SUPABASE_DB_URL) return { url: process.env.SUPABASE_DB_URL, source: "SUPABASE_DB_URL" };
-      if (process.env.POSTGRES_URL) return { url: process.env.POSTGRES_URL, source: "POSTGRES_URL" };
-      if (process.env.DB_URL) return { url: process.env.DB_URL, source: "DB_URL" };
-      if (process.env.POSTGRESQL_URL) return { url: process.env.POSTGRESQL_URL, source: "POSTGRESQL_URL" };
+    function buildConnectionConfig() {
+      const url = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || process.env.POSTGRES_URL || process.env.DB_URL || process.env.POSTGRESQL_URL;
+      if (url) {
+        const isReplit = process.env.PGHOST && process.env.PGHOST.includes("replit");
+        const isLocalhost = url.includes("localhost") || url.includes("127.0.0.1");
+        const ssl = isLocalhost || isReplit ? false : { rejectUnauthorized: false };
+        console.log(`\u{1F517} DB source : DATABASE_URL`);
+        return { connectionString: url, ssl };
+      }
+      if (process.env.PGHOST) {
+        console.log(`\u{1F517} DB source : PG* env vars`);
+        return {
+          host: process.env.PGHOST,
+          port: parseInt(process.env.PGPORT || "5432"),
+          user: process.env.PGUSER,
+          password: process.env.PGPASSWORD,
+          database: process.env.PGDATABASE,
+          ssl: false
+        };
+      }
       if (process.env.SUPABASE_URL && process.env.SUPABASE_DB_PASSWORD) {
         const raw = process.env.SUPABASE_URL.replace(/\/$/, "");
         const match = raw.match(/https?:\/\/([a-z0-9]+)\.supabase\.co/);
         if (match) {
           const ref = match[1];
           const pwd = encodeURIComponent(process.env.SUPABASE_DB_PASSWORD);
+          console.log(`\u{1F517} DB source : SUPABASE_URL+SUPABASE_DB_PASSWORD (direct)`);
           return {
-            url: `postgresql://postgres:${pwd}@db.${ref}.supabase.co:5432/postgres`,
-            source: "SUPABASE_URL+SUPABASE_DB_PASSWORD (direct)"
+            connectionString: `postgresql://postgres:${pwd}@db.${ref}.supabase.co:5432/postgres`,
+            ssl: { rejectUnauthorized: false }
           };
         }
       }
-      return null;
-    }
-    var conn = buildConnectionString();
-    if (!conn) {
       console.error("\u274C Aucune variable de connexion DB trouv\xE9e.");
-      console.error("   \u2192 Ajoutez DATABASE_URL dans Plesk (URL PostgreSQL compl\xE8te)");
-      console.error("   \u2192 OU ajoutez SUPABASE_DB_PASSWORD (mot de passe DB Supabase)");
-    } else {
-      console.log(`\u{1F517} DB source : ${conn.source}`);
+      return {};
     }
-    var pool = new Pool({
-      connectionString: conn?.url,
-      ssl: conn?.url && conn.url.includes("localhost") ? false : { rejectUnauthorized: false }
-    });
+    var config = buildConnectionConfig();
+    var pool = new Pool(config);
     pool.on("error", (err) => {
       console.error("\u274C Erreur pool PostgreSQL:", err.message);
     });
@@ -311,25 +317,60 @@ SQL: ${sql}`);
     router.get("/profile", authMiddleware, async (req, res) => {
       try {
         const userId = req.user.id;
-        const [userRes, soldeRes] = await Promise.all([
-          query("SELECT id,nom,telephone,pays,code_parrainage,lien_parrainage,date_inscription FROM utilisateurs WHERE id = $1", [userId]),
-          query("SELECT solde FROM soldes WHERE user_id = $1", [userId])
+        const [userRes, soldeRes, depotsRes, retraitsRes] = await Promise.all([
+          query("SELECT id,nom,telephone,pays,code_parrainage,lien_parrainage,date_inscription,role FROM utilisateurs WHERE id = $1", [userId]),
+          query("SELECT solde FROM soldes WHERE user_id = $1", [userId]),
+          query("SELECT COALESCE(SUM(montant),0) AS total FROM depots WHERE user_id = $1 AND statut = 'valide'", [userId]),
+          query("SELECT COALESCE(SUM(montant),0) AS total FROM retraits WHERE user_id = $1 AND statut = 'valide'", [userId])
         ]);
-        res.json({ user: userRes.rows[0], solde: soldeRes.rows[0]?.solde || 0 });
+        res.json({
+          user: userRes.rows[0],
+          solde: soldeRes.rows[0]?.solde || 0,
+          stats: {
+            total_depots: parseFloat(depotsRes.rows[0]?.total || 0),
+            total_retraits: parseFloat(retraitsRes.rows[0]?.total || 0)
+          }
+        });
+      } catch (err) {
+        res.status(500).json({ error: "Erreur serveur" });
+      }
+    });
+    router.get("/has-transaction-password", authMiddleware, async (req, res) => {
+      try {
+        const { rows } = await query("SELECT id FROM transaction_passwords WHERE user_id = $1", [req.user.id]);
+        res.json({ has_password: rows.length > 0 });
       } catch (err) {
         res.status(500).json({ error: "Erreur serveur" });
       }
     });
     router.put("/transaction-password", authMiddleware, async (req, res) => {
       try {
-        const { password } = req.body;
-        if (!password || !/^\d{4}$/.test(password)) {
-          return res.status(400).json({ error: "Le mot de passe doit \xEAtre compos\xE9 de 4 chiffres" });
+        const { password, old_password, new_password, confirm_password } = req.body;
+        const existing = await query("SELECT password FROM transaction_passwords WHERE user_id = $1", [req.user.id]);
+        const hasPassword = existing.rows.length > 0;
+        if (hasPassword) {
+          if (!old_password || !new_password || !confirm_password) {
+            return res.status(400).json({ error: "Tous les champs sont obligatoires" });
+          }
+          if (!/^\d{4}$/.test(new_password)) {
+            return res.status(400).json({ error: "Le nouveau mot de passe doit \xEAtre compos\xE9 de 4 chiffres" });
+          }
+          if (new_password !== confirm_password) {
+            return res.status(400).json({ error: "Les nouveaux mots de passe ne correspondent pas" });
+          }
+          if (existing.rows[0].password !== old_password) {
+            return res.status(400).json({ error: "Ancien mot de passe incorrect" });
+          }
+          await query("UPDATE transaction_passwords SET password = $1 WHERE user_id = $2", [new_password, req.user.id]);
+        } else {
+          if (!password || !/^\d{4}$/.test(password)) {
+            return res.status(400).json({ error: "Le mot de passe doit \xEAtre compos\xE9 de 4 chiffres" });
+          }
+          await query(
+            "INSERT INTO transaction_passwords (user_id, password) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET password = $2",
+            [req.user.id, password]
+          );
         }
-        await query(
-          "INSERT INTO transaction_passwords (user_id, password) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET password = $2",
-          [req.user.id, password]
-        );
         res.json({ success: true, message: "Mot de passe de transaction mis \xE0 jour" });
       } catch (err) {
         res.status(500).json({ error: "Erreur serveur" });
@@ -622,8 +663,10 @@ var require_deposit = __commonJS({
           return res.status(400).json({ error: "Tous les champs sont obligatoires" });
         }
         const montantNum = parseFloat(montant);
-        if (montantNum < 500) {
-          return res.status(400).json({ error: "Le montant minimum de d\xE9p\xF4t est de 500" });
+        const minDepotRes = await query("SELECT valeur FROM settings WHERE cle = 'min_depot'").catch(() => ({ rows: [] }));
+        const minDepot = parseFloat(minDepotRes.rows[0]?.valeur || 500);
+        if (montantNum < minDepot) {
+          return res.status(400).json({ error: `Le montant minimum de d\xE9p\xF4t est de ${new Intl.NumberFormat("fr-FR").format(minDepot)} FCFA` });
         }
         const preuve_path = req.file ? req.file.filename : null;
         const { rows } = await query(
@@ -733,7 +776,9 @@ var require_withdrawal = __commonJS({
         const soldeRes = await query("SELECT solde FROM soldes WHERE user_id = $1", [userId]);
         const solde = parseFloat(soldeRes.rows[0]?.solde || 0);
         const montantNum = parseFloat(montant);
-        if (montantNum < 2e3) return res.status(400).json({ error: "Retrait minimum: 2000" });
+        const minRetraitRes = await query("SELECT valeur FROM settings WHERE cle = 'min_retrait'").catch(() => ({ rows: [] }));
+        const minRetrait = parseFloat(minRetraitRes.rows[0]?.valeur || 2e3);
+        if (montantNum < minRetrait) return res.status(400).json({ error: `Retrait minimum: ${new Intl.NumberFormat("fr-FR").format(minRetrait)} FCFA` });
         if (montantNum > solde) return res.status(400).json({ error: "Solde insuffisant" });
         const result = await withTransaction(async (client) => {
           const checkSolde = await client.query("SELECT solde FROM soldes WHERE user_id = $1 FOR UPDATE", [userId]);
@@ -1221,6 +1266,7 @@ var require_admin = __commonJS({
     });
     var SETTINGS_DEFAULTS = {
       min_depot: "500",
+      min_retrait: "2000",
       commission_niveau1: "10",
       commission_niveau2: "5",
       commission_niveau3: "2"
@@ -1899,6 +1945,19 @@ app.get("/api/setup-admin", async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+app.get("/api/settings/public", async (req, res) => {
+  const { pool } = require_db();
+  try {
+    const { rows } = await pool.query("SELECT cle, valeur FROM settings WHERE cle IN ('min_depot', 'min_retrait')");
+    const map = { min_depot: "500", min_retrait: "2000" };
+    rows.forEach((r) => {
+      map[r.cle] = r.valeur;
+    });
+    res.json(map);
+  } catch {
+    res.json({ min_depot: "500", min_retrait: "2000" });
   }
 });
 app.get("/api/health", async (req, res) => {
