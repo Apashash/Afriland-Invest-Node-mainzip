@@ -466,7 +466,6 @@ export default function Admin() {
     { key: 'cadeaux', label: 'Cadeaux VIP', icon: 'fa-gift', color: '#FF9500', badge: cadeaux.filter(c => c.statut === 'en_attente').length },
     { key: 'salaires', label: 'Salaires VIP', icon: 'fa-money-bill-wave', color: '#34C759' },
     { key: 'transactions', label: 'Transactions', icon: 'fa-receipt', color: '#5856D6' },
-    { key: 'posts', label: 'Posts', icon: 'fa-newspaper', color: '#FF3B30', badge: posts.filter(p => p.statut === 'en_attente').length },
     { key: 'annonces', label: 'Affiches', icon: 'fa-image', color: '#FF9500' },
     { key: 'settings', label: 'Paramètres', icon: 'fa-cog', color: '#8E8E93' },
   ];
