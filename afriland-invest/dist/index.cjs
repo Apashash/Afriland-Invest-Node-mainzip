@@ -23,13 +23,37 @@ var require_db = __commonJS({
   "server/db.js"(exports2, module2) {
     "use strict";
     var { Pool } = require("pg");
-    var connectionString = process.env.DATABASE_URL;
-    if (!connectionString) {
-      console.error("\u274C DATABASE_URL non d\xE9finie \u2014 ajoutez-la dans vos variables d'environnement Plesk");
+    function buildConnectionString() {
+      if (process.env.DATABASE_URL) return { url: process.env.DATABASE_URL, source: "DATABASE_URL" };
+      if (process.env.SUPABASE_DB_URL) return { url: process.env.SUPABASE_DB_URL, source: "SUPABASE_DB_URL" };
+      if (process.env.POSTGRES_URL) return { url: process.env.POSTGRES_URL, source: "POSTGRES_URL" };
+      if (process.env.DB_URL) return { url: process.env.DB_URL, source: "DB_URL" };
+      if (process.env.POSTGRESQL_URL) return { url: process.env.POSTGRESQL_URL, source: "POSTGRESQL_URL" };
+      if (process.env.SUPABASE_URL && process.env.SUPABASE_DB_PASSWORD) {
+        const raw = process.env.SUPABASE_URL.replace(/\/$/, "");
+        const match = raw.match(/https?:\/\/([a-z0-9]+)\.supabase\.co/);
+        if (match) {
+          const ref = match[1];
+          const pwd = encodeURIComponent(process.env.SUPABASE_DB_PASSWORD);
+          return {
+            url: `postgresql://postgres.${ref}:${pwd}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres`,
+            source: "SUPABASE_URL+SUPABASE_DB_PASSWORD"
+          };
+        }
+      }
+      return null;
+    }
+    var conn = buildConnectionString();
+    if (!conn) {
+      console.error("\u274C Aucune variable de connexion DB trouv\xE9e.");
+      console.error("   \u2192 Ajoutez DATABASE_URL dans Plesk (URL PostgreSQL compl\xE8te)");
+      console.error("   \u2192 OU ajoutez SUPABASE_DB_PASSWORD (mot de passe DB Supabase)");
+    } else {
+      console.log(`\u{1F517} DB source : ${conn.source}`);
     }
     var pool = new Pool({
-      connectionString,
-      ssl: connectionString && connectionString.includes("localhost") ? false : { rejectUnauthorized: false }
+      connectionString: conn?.url,
+      ssl: conn?.url && conn.url.includes("localhost") ? false : { rejectUnauthorized: false }
     });
     pool.on("error", (err) => {
       console.error("\u274C Erreur pool PostgreSQL:", err.message);
@@ -37,8 +61,7 @@ var require_db = __commonJS({
     async function query(text, params) {
       const client = await pool.connect();
       try {
-        const result = await client.query(text, params);
-        return result;
+        return await client.query(text, params);
       } finally {
         client.release();
       }

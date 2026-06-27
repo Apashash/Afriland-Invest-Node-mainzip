@@ -1,14 +1,43 @@
 const { Pool } = require('pg');
 
-const connectionString = process.env.DATABASE_URL;
+function buildConnectionString() {
+  // Priorité 1 : URL directe
+  if (process.env.DATABASE_URL)    return { url: process.env.DATABASE_URL,   source: 'DATABASE_URL' };
+  if (process.env.SUPABASE_DB_URL) return { url: process.env.SUPABASE_DB_URL, source: 'SUPABASE_DB_URL' };
+  if (process.env.POSTGRES_URL)    return { url: process.env.POSTGRES_URL,    source: 'POSTGRES_URL' };
+  if (process.env.DB_URL)          return { url: process.env.DB_URL,          source: 'DB_URL' };
+  if (process.env.POSTGRESQL_URL)  return { url: process.env.POSTGRESQL_URL,  source: 'POSTGRESQL_URL' };
 
-if (!connectionString) {
-  console.error('❌ DATABASE_URL non définie — ajoutez-la dans vos variables d\'environnement Plesk');
+  // Priorité 2 : construire depuis SUPABASE_URL + SUPABASE_DB_PASSWORD
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_DB_PASSWORD) {
+    const raw = process.env.SUPABASE_URL.replace(/\/$/, '');
+    const match = raw.match(/https?:\/\/([a-z0-9]+)\.supabase\.co/);
+    if (match) {
+      const ref = match[1];
+      const pwd = encodeURIComponent(process.env.SUPABASE_DB_PASSWORD);
+      return {
+        url: `postgresql://postgres.${ref}:${pwd}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres`,
+        source: 'SUPABASE_URL+SUPABASE_DB_PASSWORD',
+      };
+    }
+  }
+
+  return null;
+}
+
+const conn = buildConnectionString();
+
+if (!conn) {
+  console.error('❌ Aucune variable de connexion DB trouvée.');
+  console.error('   → Ajoutez DATABASE_URL dans Plesk (URL PostgreSQL complète)');
+  console.error('   → OU ajoutez SUPABASE_DB_PASSWORD (mot de passe DB Supabase)');
+} else {
+  console.log(`🔗 DB source : ${conn.source}`);
 }
 
 const pool = new Pool({
-  connectionString,
-  ssl: connectionString && connectionString.includes('localhost') ? false : { rejectUnauthorized: false },
+  connectionString: conn?.url,
+  ssl: conn?.url && conn.url.includes('localhost') ? false : { rejectUnauthorized: false },
 });
 
 pool.on('error', (err) => {
@@ -18,8 +47,7 @@ pool.on('error', (err) => {
 async function query(text, params) {
   const client = await pool.connect();
   try {
-    const result = await client.query(text, params);
-    return result;
+    return await client.query(text, params);
   } finally {
     client.release();
   }
