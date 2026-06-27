@@ -32,6 +32,7 @@ export default function Withdrawal() {
   const [submitting, setSubmitting] = useState(false);
   const [tab, setTab] = useState('form');
   const [minRetrait, setMinRetrait] = useState(2000);
+  const [retraitSchedule, setRetraitSchedule] = useState({ jours: '1,2,3,4,5,6', heureDebut: '9', heureFin: '19', maxParJour: '1' });
   const navigate = useNavigate();
 
   useEffect(() => { loadData(); }, []);
@@ -46,6 +47,12 @@ export default function Withdrawal() {
       setUserInfo(dashRes.data.user);
       setHistory(histRes.data.retraits);
       setMinRetrait(parseFloat(settingsRes.data.min_retrait || 2000));
+      setRetraitSchedule({
+        jours: settingsRes.data.retrait_jours || '1,2,3,4,5,6',
+        heureDebut: settingsRes.data.retrait_heure_debut || '9',
+        heureFin: settingsRes.data.retrait_heure_fin || '19',
+        maxParJour: settingsRes.data.retrait_max_par_jour || '1',
+      });
     } catch { toast.error('Erreur de chargement'); }
     finally { setLoading(false); }
   };
@@ -154,13 +161,22 @@ export default function Withdrawal() {
               </span>
               Conditions de retrait
             </p>
-            <ul style={{ fontSize: 12, color: '#666', lineHeight: 2, paddingLeft: 18, margin: 0 }}>
-              <li>Lundi au samedi de 9h à 19h (GMT)</li>
-              <li>Minimum: <strong style={{ color: '#1A1A1A' }}>{fmt(minRetrait)} FCFA</strong></li>
-              <li>Un seul retrait toutes les 24h</li>
-              <li>Plan d'investissement actif requis</li>
-              <li>Portefeuille configuré obligatoire</li>
-            </ul>
+            {(() => {
+              const jourNoms = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+              const jourNomsFull = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+              const joursArr = retraitSchedule.jours.split(',').map(d => parseInt(d.trim())).filter(d => !isNaN(d));
+              const joursStr = joursArr.map(d => jourNomsFull[d]).join(', ');
+              const maxJour = parseInt(retraitSchedule.maxParJour || 1);
+              return (
+                <ul style={{ fontSize: 12, color: '#666', lineHeight: 2, paddingLeft: 18, margin: 0 }}>
+                  <li>{joursStr} de {retraitSchedule.heureDebut}h à {retraitSchedule.heureFin}h (GMT)</li>
+                  <li>Minimum: <strong style={{ color: '#1A1A1A' }}>{fmt(minRetrait)} FCFA</strong></li>
+                  <li>{maxJour <= 1 ? 'Un seul retrait toutes les 24h' : `Maximum ${maxJour} retraits par 24h`}</li>
+                  <li>Plan d'investissement actif requis</li>
+                  <li>Portefeuille configuré obligatoire</li>
+                </ul>
+              );
+            })()}
           </div>
 
           {/* Lien portefeuille */}

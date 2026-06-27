@@ -1349,6 +1349,80 @@ export default function Admin() {
               </button>
             </div>
 
+            {/* ── Horaires de retrait ── */}
+            <div style={{ background: '#fff', borderRadius: 16, padding: '18px 16px', marginBottom: 14, boxShadow: 'var(--shadow-card)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: '#007AFF20', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className="fas fa-clock" style={{ color: '#007AFF', fontSize: 14 }} />
+                </div>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: 14 }}>Horaires & limite de retrait</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>Jours, heures et nombre max par utilisateur</p>
+                </div>
+              </div>
+
+              {/* Jours autorisés */}
+              <p style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 8 }}>Jours autorisés</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                {[
+                  { num: 1, label: 'Lun' }, { num: 2, label: 'Mar' }, { num: 3, label: 'Mer' },
+                  { num: 4, label: 'Jeu' }, { num: 5, label: 'Ven' }, { num: 6, label: 'Sam' }, { num: 0, label: 'Dim' },
+                ].map(({ num, label }) => {
+                  const jours = (settings.retrait_jours || '1,2,3,4,5,6').split(',').map(d => parseInt(d.trim()));
+                  const checked = jours.includes(num);
+                  const toggle = () => {
+                    const next = checked ? jours.filter(d => d !== num) : [...jours, num].sort((a, b) => a - b);
+                    setSettings(s => ({ ...s, retrait_jours: next.join(',') }));
+                  };
+                  return (
+                    <button key={num} onClick={toggle} style={{
+                      padding: '7px 14px', borderRadius: 50, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                      background: checked ? '#007AFF' : '#F0F0F0',
+                      color: checked ? '#fff' : '#888',
+                      boxShadow: checked ? '0 2px 8px rgba(0,122,255,0.3)' : 'none',
+                      transition: 'all .15s',
+                    }}>{label}</button>
+                  );
+                })}
+              </div>
+
+              {/* Heures */}
+              <p style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 8 }}>Plage horaire (heure GMT)</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+                <div className="input-group">
+                  <label>Heure de début</label>
+                  <input type="number" min="0" max="23" value={settings.retrait_heure_debut ?? '9'}
+                    onChange={e => setSettings(s => ({ ...s, retrait_heure_debut: e.target.value }))} placeholder="9" />
+                </div>
+                <div className="input-group">
+                  <label>Heure de fin</label>
+                  <input type="number" min="0" max="23" value={settings.retrait_heure_fin ?? '19'}
+                    onChange={e => setSettings(s => ({ ...s, retrait_heure_fin: e.target.value }))} placeholder="19" />
+                </div>
+              </div>
+
+              {/* Max par jour */}
+              <p style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 8 }}>Nombre de retraits max par utilisateur / 24h</p>
+              <div className="input-group" style={{ marginBottom: 14 }}>
+                <input type="number" min="1" value={settings.retrait_max_par_jour ?? '1'}
+                  onChange={e => setSettings(s => ({ ...s, retrait_max_par_jour: e.target.value }))} placeholder="1" />
+              </div>
+
+              <button onClick={async () => {
+                try {
+                  await Promise.all([
+                    api.put('/admin/settings', { cle: 'retrait_jours', valeur: settings.retrait_jours || '1,2,3,4,5,6' }),
+                    api.put('/admin/settings', { cle: 'retrait_heure_debut', valeur: settings.retrait_heure_debut ?? '9' }),
+                    api.put('/admin/settings', { cle: 'retrait_heure_fin', valeur: settings.retrait_heure_fin ?? '19' }),
+                    api.put('/admin/settings', { cle: 'retrait_max_par_jour', valeur: settings.retrait_max_par_jour ?? '1' }),
+                  ]);
+                  toast.success('Horaires de retrait sauvegardés ✅');
+                } catch { toast.error('Erreur'); }
+              }} className="btn btn-primary" style={{ padding: '12px', borderRadius: 50 }}>
+                <i className="fas fa-save" style={{ marginRight: 8 }} />Enregistrer les horaires
+              </button>
+            </div>
+
             <div style={{ background: '#fff', borderRadius: 16, padding: '18px 16px', marginBottom: 14, boxShadow: 'var(--shadow-card)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                 <div style={{ width: 34, height: 34, borderRadius: 10, background: '#34C75920', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

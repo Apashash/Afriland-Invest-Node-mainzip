@@ -417,6 +417,10 @@ const SETTINGS_DEFAULTS = {
   commission_niveau1: '10',
   commission_niveau2: '5',
   commission_niveau3: '2',
+  retrait_max_par_jour: '1',
+  retrait_jours: '1,2,3,4,5,6',
+  retrait_heure_debut: '9',
+  retrait_heure_fin: '19',
 };
 
 router.get('/settings', adminMiddleware, async (req, res) => {

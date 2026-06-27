@@ -24,11 +24,23 @@ router.post('/request', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Montant et mot de passe requis' });
     }
 
+    // Lire les horaires configurés par l'admin
+    const scheduleRes = await query(
+      "SELECT cle, valeur FROM settings WHERE cle IN ('retrait_jours','retrait_heure_debut','retrait_heure_fin')"
+    ).catch(() => ({ rows: [] }));
+    const sched = { retrait_jours: '1,2,3,4,5,6', retrait_heure_debut: '9', retrait_heure_fin: '19' };
+    scheduleRes.rows.forEach(r => { sched[r.cle] = r.valeur; });
+    const joursAutorise = sched.retrait_jours.split(',').map(d => parseInt(d.trim()));
+    const heureDebut = parseInt(sched.retrait_heure_debut);
+    const heureFin = parseInt(sched.retrait_heure_fin);
+
     const now = new Date();
     const hour = now.getUTCHours();
     const day = now.getUTCDay();
-    if (day === 0 || hour < 9 || hour >= 19) {
-      return res.status(400).json({ error: 'Les retraits sont disponibles du lundi au samedi de 9h à 19h GMT' });
+    if (!joursAutorise.includes(day) || hour < heureDebut || hour >= heureFin) {
+      const jourNoms = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+      const joursStr = joursAutorise.map(d => jourNoms[d]).join(', ');
+      return res.status(400).json({ error: `Les retraits sont disponibles : ${joursStr} de ${heureDebut}h à ${heureFin}h GMT` });
     }
 
     const userCheck = await query('SELECT banni, retrait_bloque, retrait_bloque_vip FROM utilisateurs WHERE id = $1', [userId]);
@@ -81,13 +93,15 @@ router.post('/request', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: "Vous devez avoir un plan d'investissement actif pour retirer" });
     }
 
+    const maxParJourRes = await query("SELECT valeur FROM settings WHERE cle = 'retrait_max_par_jour'").catch(() => ({ rows: [] }));
+    const maxParJour = parseInt(maxParJourRes.rows[0]?.valeur || 1);
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const recentRes = await query(
       "SELECT COUNT(*) FROM retraits WHERE user_id = $1 AND statut IN ('en_attente','valide') AND date_demande >= $2",
       [userId, yesterday]
     );
-    if (parseInt(recentRes.rows[0].count) > 0) {
-      return res.status(400).json({ error: 'Un seul retrait par 24h est autorisé' });
+    if (parseInt(recentRes.rows[0].count) >= maxParJour) {
+      return res.status(400).json({ error: `Maximum ${maxParJour} retrait(s) par 24h autorisé(s)` });
     }
 
     const soldeRes = await query('SELECT solde FROM soldes WHERE user_id = $1', [userId]);
