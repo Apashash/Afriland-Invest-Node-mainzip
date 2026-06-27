@@ -18,6 +18,8 @@ const postRoutes = require('./routes/posts');
 const annoncesRoutes = require('./routes/annonces');
 const transactionsRoutes = require('./routes/transactions');
 
+const { runMigrations } = require('./migrate');
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -110,6 +112,11 @@ process.on('unhandledRejection', (reason) => {
   console.error('❌ Unhandled Rejection:', reason);
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`✅ AFRILAND INVEST server running on port ${PORT}`);
+  try {
+    await runMigrations();
+  } catch (err) {
+    console.error('❌ Migration error:', err.message);
+  }
 });
