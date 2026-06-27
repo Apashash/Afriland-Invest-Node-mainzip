@@ -1,5 +1,5 @@
 const express = require('express');
-const { supabase } = require('../db');
+const { query } = require('../db');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 const router = express.Router();
 
@@ -61,29 +61,28 @@ function mapCommande(c) {
     statut: c.statut,
     date: c.date_debut,
     details: {
-      plan_nom: c.planinvestissement?.nom || null,
+      plan_nom: c.plan_nom || null,
       revenu_journalier: parseFloat(c.revenu_journalier || 0),
       date_fin: c.date_fin,
     },
   };
 }
 
-// ── Transactions de l'utilisateur connecté ──
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
     const [depotsRes, retraitsRes, commandesRes, revenusRes] = await Promise.all([
-      supabase.from('depots').select('*').eq('user_id', userId),
-      supabase.from('retraits').select('*').eq('user_id', userId),
-      supabase.from('commandes').select('*, planinvestissement(nom)').eq('user_id', userId),
-      supabase.from('historique_revenus').select('*').eq('user_id', userId),
+      query('SELECT * FROM depots WHERE user_id=$1', [userId]),
+      query('SELECT * FROM retraits WHERE user_id=$1', [userId]),
+      query(`SELECT c.*, p.nom as plan_nom FROM commandes c JOIN planinvestissement p ON c.plan_id=p.id WHERE c.user_id=$1`, [userId]),
+      query('SELECT * FROM historique_revenus WHERE user_id=$1', [userId]),
     ]);
 
     const transactions = [
-      ...(depotsRes.data || []).map(mapDepot),
-      ...(retraitsRes.data || []).map(mapRetrait),
-      ...(commandesRes.data || []).map(mapCommande),
-      ...(revenusRes.data || []).map(mapRevenu),
+      ...depotsRes.rows.map(mapDepot),
+      ...retraitsRes.rows.map(mapRetrait),
+      ...commandesRes.rows.map(mapCommande),
+      ...revenusRes.rows.map(mapRevenu),
     ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     res.json({ transactions });
@@ -92,19 +91,18 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-// ── Toutes les transactions (admin) ──
 router.get('/admin', adminMiddleware, async (req, res) => {
   try {
     const [depotsRes, retraitsRes, commandesRes, revenusRes, usersRes] = await Promise.all([
-      supabase.from('depots').select('*'),
-      supabase.from('retraits').select('*'),
-      supabase.from('commandes').select('*, planinvestissement(nom)'),
-      supabase.from('historique_revenus').select('*'),
-      supabase.from('utilisateurs').select('id, nom, telephone'),
+      query('SELECT * FROM depots'),
+      query('SELECT * FROM retraits'),
+      query('SELECT c.*, p.nom as plan_nom FROM commandes c JOIN planinvestissement p ON c.plan_id=p.id'),
+      query('SELECT * FROM historique_revenus'),
+      query('SELECT id, nom, telephone FROM utilisateurs'),
     ]);
 
     const userMap = {};
-    for (const u of usersRes.data || []) userMap[u.id] = u;
+    for (const u of usersRes.rows) userMap[u.id] = u;
 
     const attach = (tx, userId) => ({
       ...tx,
@@ -112,10 +110,10 @@ router.get('/admin', adminMiddleware, async (req, res) => {
     });
 
     const transactions = [
-      ...(depotsRes.data || []).map((d) => attach(mapDepot(d), d.user_id)),
-      ...(retraitsRes.data || []).map((r) => attach(mapRetrait(r), r.user_id)),
-      ...(commandesRes.data || []).map((c) => attach(mapCommande(c), c.user_id)),
-      ...(revenusRes.data || []).map((r) => attach(mapRevenu(r), r.user_id)),
+      ...depotsRes.rows.map((d) => attach(mapDepot(d), d.user_id)),
+      ...retraitsRes.rows.map((r) => attach(mapRetrait(r), r.user_id)),
+      ...commandesRes.rows.map((c) => attach(mapCommande(c), c.user_id)),
+      ...revenusRes.rows.map((r) => attach(mapRevenu(r), r.user_id)),
     ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     res.json({ transactions });

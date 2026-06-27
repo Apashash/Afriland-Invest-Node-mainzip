@@ -1,4 +1,4 @@
-modules = ["nodejs-24", "python-3.11"]
+modules = ["nodejs-20", "web", "postgresql-16"]
 
 [deployment]
 router = "application"
@@ -24,13 +24,13 @@ args = "AFRILAND INVEST"
 name = "AFRILAND INVEST"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "console"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd afriland-invest && node server/index.js"
+args = "cd afriland-invest && PORT=3000 node server/index.js"
 waitForPort = 3000
-
-[workflows.workflow.metadata]
-outputType = "webview"
 
 [agent]
 stack = "BEST_EFFORT_FALLBACK"
@@ -51,3 +51,11 @@ externalPort = 80
 [[ports]]
 localPort = 8081
 externalPort = 8081
+
+[nix]
+channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+JWT_SECRET = "afriland_invest_replit_2024_secure"

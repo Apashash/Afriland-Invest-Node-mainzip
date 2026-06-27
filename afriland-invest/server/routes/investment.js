@@ -1,16 +1,12 @@
 const express = require('express');
-const { supabase } = require('../db');
+const { query, supabase } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 const router = express.Router();
 
 router.get('/plans', authMiddleware, async (req, res) => {
   try {
-    const { data: plans, error } = await supabase
-      .from('planinvestissement')
-      .select('*')
-      .order('prix', { ascending: true });
-    if (error) throw error;
-    const result = (plans || []).map((p) => ({
+    const res2 = await query('SELECT * FROM planinvestissement ORDER BY prix ASC');
+    const result = res2.rows.map((p) => ({
       ...p,
       revenu_journalier: (parseFloat(p.prix) * parseFloat(p.rendement_journalier)) / 100,
       revenu_total: ((parseFloat(p.prix) * parseFloat(p.rendement_journalier)) / 100) * p.duree_jours,
@@ -23,21 +19,13 @@ router.get('/plans', authMiddleware, async (req, res) => {
 
 router.get('/my-orders', authMiddleware, async (req, res) => {
   try {
-    const { data: orders, error } = await supabase
-      .from('commandes')
-      .select('*, planinvestissement(nom, rendement_journalier, duree_jours, serie)')
-      .eq('user_id', req.user.id)
-      .order('date_debut', { ascending: false });
-    if (error) throw error;
-    const result = (orders || []).map(c => ({
-      ...c,
-      plan_nom: c.planinvestissement?.nom,
-      rendement_journalier: c.planinvestissement?.rendement_journalier,
-      duree_jours: c.planinvestissement?.duree_jours,
-      serie: c.planinvestissement?.serie,
-      planinvestissement: undefined,
-    }));
-    res.json({ orders: result });
+    const res2 = await query(
+      `SELECT c.*, p.nom as plan_nom, p.rendement_journalier, p.duree_jours, p.serie
+       FROM commandes c JOIN planinvestissement p ON c.plan_id=p.id
+       WHERE c.user_id=$1 ORDER BY c.date_debut DESC`,
+      [req.user.id]
+    );
+    res.json({ orders: res2.rows });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
@@ -50,37 +38,16 @@ router.post('/buy', authMiddleware, async (req, res) => {
 
     if (!plan_id) return res.status(400).json({ error: 'Plan requis' });
 
-    // Vérifier mot de passe de transaction
-    const { data: tp } = await supabase
-      .from('transaction_passwords')
-      .select('password')
-      .eq('user_id', userId)
-      .maybeSingle();
+    const tpRes = await query('SELECT password FROM transaction_passwords WHERE user_id=$1', [userId]);
+    const tp = tpRes.rows[0];
 
     if (!tp) return res.status(400).json({ error: 'Veuillez configurer votre mot de passe de transaction' });
     if (tp.password !== transaction_password) return res.status(400).json({ error: 'Mot de passe de transaction incorrect' });
 
-    // Récupérer le plan
-    const { data: plan } = await supabase
-      .from('planinvestissement')
-      .select('*')
-      .eq('id', plan_id)
-      .single();
+    const planRes = await query('SELECT * FROM planinvestissement WHERE id=$1', [plan_id]);
+    const plan = planRes.rows[0];
     if (!plan) return res.status(404).json({ error: 'Plan introuvable' });
 
-    // Vérifier le solde
-    const { data: soldeRow } = await supabase
-      .from('soldes')
-      .select('solde')
-      .eq('user_id', userId)
-      .maybeSingle();
-    const solde = parseFloat(soldeRow?.solde || 0);
-
-    if (solde < parseFloat(plan.prix)) {
-      return res.status(400).json({ error: 'Solde insuffisant' });
-    }
-
-    // Appel RPC atomique pour buy
     const { data: result, error } = await supabase.rpc('buy_plan', {
       p_user_id: userId,
       p_plan_id: plan_id,
@@ -97,26 +64,22 @@ router.post('/buy', authMiddleware, async (req, res) => {
   }
 });
 
-// ─── VIP / CADEAUX ────────────────────────────────────────────────────────────
 const VIP_LEVELS = [
   { niveau: 1, requis: 70, cadeau: 5000 },
   { niveau: 2, requis: 100, cadeau: 8000 },
   { niveau: 3, requis: 200, cadeau: 10000 },
 ];
 
-// Compte les filleuls directs ayant effectué au moins un investissement
 async function countFilleulsInvestisseurs(userId) {
-  const { data: filleuls } = await supabase
-    .from('utilisateurs')
-    .select('id')
-    .eq('parrain_id', userId);
-  const ids = (filleuls || []).map((f) => f.id);
+  const filleulsRes = await query('SELECT id FROM utilisateurs WHERE parrain_id=$1', [userId]);
+  const ids = filleulsRes.rows.map((f) => f.id);
   if (ids.length === 0) return 0;
-  const { data: commandes } = await supabase
-    .from('commandes')
-    .select('user_id')
-    .in('user_id', ids);
-  return new Set((commandes || []).map((c) => c.user_id)).size;
+  const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
+  const commandesRes = await query(
+    `SELECT DISTINCT user_id FROM commandes WHERE user_id IN (${placeholders})`,
+    ids
+  );
+  return commandesRes.rows.length;
 }
 
 router.get('/salary', authMiddleware, async (req, res) => {
@@ -124,12 +87,9 @@ router.get('/salary', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     const count = await countFilleulsInvestisseurs(userId);
 
-    const { data: claims } = await supabase
-      .from('cadeaux_vip')
-      .select('niveau,statut')
-      .eq('user_id', userId);
+    const claimsRes = await query('SELECT niveau,statut FROM cadeaux_vip WHERE user_id=$1', [userId]);
     const claimMap = {};
-    (claims || []).forEach((c) => { claimMap[c.niveau] = c.statut; });
+    claimsRes.rows.forEach((c) => { claimMap[c.niveau] = c.statut; });
 
     let niveauActuel = 0;
     VIP_LEVELS.forEach((l) => { if (count >= l.requis) niveauActuel = l.niveau; });
@@ -139,7 +99,7 @@ router.get('/salary', authMiddleware, async (req, res) => {
       requis: l.requis,
       cadeau: l.cadeau,
       atteint: count >= l.requis,
-      statut: claimMap[l.niveau] || 'none', // none / en_attente / valide / rejete
+      statut: claimMap[l.niveau] || 'none',
     }));
 
     const prochain = VIP_LEVELS.find((l) => count < l.requis);
@@ -170,37 +130,27 @@ router.post('/claim-gift', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: `Il faut ${level.requis} filleuls ayant investi pour réclamer ce cadeau` });
     }
 
-    const { data: existing } = await supabase
-      .from('cadeaux_vip')
-      .select('id,statut')
-      .eq('user_id', userId)
-      .eq('niveau', niveau)
-      .maybeSingle();
+    const existingRes = await query('SELECT id,statut FROM cadeaux_vip WHERE user_id=$1 AND niveau=$2', [userId, niveau]);
+    const existing = existingRes.rows[0];
 
-    if (existing && existing.statut === 'valide') {
-      return res.status(400).json({ error: 'Cadeau déjà reçu' });
-    }
-    if (existing && existing.statut === 'en_attente') {
-      return res.status(400).json({ error: 'Cadeau déjà réclamé, en attente de confirmation' });
-    }
+    if (existing && existing.statut === 'valide') return res.status(400).json({ error: 'Cadeau déjà reçu' });
+    if (existing && existing.statut === 'en_attente') return res.status(400).json({ error: 'Cadeau déjà réclamé, en attente de confirmation' });
 
-    if (existing) {
-      const { error } = await supabase
-        .from('cadeaux_vip')
-        .update({ statut: 'en_attente', montant: level.cadeau, date_demande: new Date().toISOString(), date_traitement: null })
-        .eq('id', existing.id);
-      if (error) throw error;
-    } else {
-      const { error } = await supabase
-        .from('cadeaux_vip')
-        .insert({ user_id: userId, niveau, montant: level.cadeau, statut: 'en_attente' });
-      if (error) {
-        // Course : une réclamation parallèle a déjà créé la ligne (contrainte unique)
-        if (error.code === '23505') {
-          return res.status(400).json({ error: 'Cadeau déjà réclamé' });
-        }
-        throw error;
+    try {
+      if (existing) {
+        await query(
+          `UPDATE cadeaux_vip SET statut='en_attente', montant=$1, date_demande=NOW(), date_traitement=NULL WHERE id=$2`,
+          [level.cadeau, existing.id]
+        );
+      } else {
+        await query(
+          `INSERT INTO cadeaux_vip (user_id, niveau, montant, statut) VALUES ($1,$2,$3,'en_attente')`,
+          [userId, niveau, level.cadeau]
+        );
       }
+    } catch (err) {
+      if (err.code === '23505') return res.status(400).json({ error: 'Cadeau déjà réclamé' });
+      throw err;
     }
 
     res.json({ success: true, message: "Cadeau réclamé ! En attente de confirmation de l'administrateur." });
@@ -212,13 +162,11 @@ router.post('/claim-gift', authMiddleware, async (req, res) => {
 
 router.get('/revenue-history', authMiddleware, async (req, res) => {
   try {
-    const { data: history } = await supabase
-      .from('historique_revenus')
-      .select('*')
-      .eq('user_id', req.user.id)
-      .order('date_paiement', { ascending: false })
-      .limit(50);
-    res.json({ history: history || [] });
+    const res2 = await query(
+      'SELECT * FROM historique_revenus WHERE user_id=$1 ORDER BY date_paiement DESC LIMIT 50',
+      [req.user.id]
+    );
+    res.json({ history: res2.rows });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
   }
