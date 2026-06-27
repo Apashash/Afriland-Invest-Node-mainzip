@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Logo from "../components/Logo";
 import { useNavigate } from 'react-router-dom';
 import BottomNav from '../components/BottomNav';
+import api from '../lib/api';
 
 const FAQS = [
   {
@@ -48,7 +49,16 @@ const FAQS = [
 
 export default function FAQ() {
   const [open, setOpen] = useState(null);
+  const [lienTelegram, setLienTelegram] = useState('https://t.me/gifetalpro');
+  const [lienWhatsappGroupe, setLienWhatsappGroupe] = useState('');
   const navigate = useNavigate();
+
+  useEffect(() => {
+    api.get('/settings/public').then(res => {
+      if (res.data.lien_telegram) setLienTelegram(res.data.lien_telegram);
+      if (res.data.lien_whatsapp_groupe) setLienWhatsappGroupe(res.data.lien_whatsapp_groupe);
+    }).catch(() => {});
+  }, []);
 
   return (
     <div className="container" style={{ paddingBottom: 80 }}>
@@ -65,13 +75,24 @@ export default function FAQ() {
             Besoin d'aide ?
           </p>
           <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Consultez nos réponses ci-dessous ou contactez notre support.</p>
-          <a href="https://t.me/gifetalpro" target="_blank" rel="noreferrer" style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 12, padding: '8px 14px',
-            background: 'rgba(0,0,0,0.15)', border: '1px solid rgba(0,0,0,0.3)',
-            borderRadius: 8, color: 'var(--blue-primary)', fontWeight: 600, fontSize: 13, textDecoration: 'none',
-          }}>
-            <i className="fab fa-telegram" /> Support Telegram
-          </a>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+            <a href={lienTelegram} target="_blank" rel="noreferrer" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px',
+              background: 'rgba(34,158,217,0.15)', border: '1px solid rgba(34,158,217,0.3)',
+              borderRadius: 8, color: '#229ED9', fontWeight: 600, fontSize: 13, textDecoration: 'none',
+            }}>
+              <i className="fab fa-telegram" /> Telegram
+            </a>
+            {lienWhatsappGroupe && (
+              <a href={lienWhatsappGroupe} target="_blank" rel="noreferrer" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px',
+                background: 'rgba(37,211,102,0.15)', border: '1px solid rgba(37,211,102,0.3)',
+                borderRadius: 8, color: '#25D366', fontWeight: 600, fontSize: 13, textDecoration: 'none',
+              }}>
+                <i className="fab fa-whatsapp" /> WhatsApp
+              </a>
+            )}
+          </div>
         </div>
 
         {FAQS.map((faq, i) => (

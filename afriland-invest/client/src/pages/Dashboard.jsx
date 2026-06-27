@@ -34,6 +34,7 @@ export default function Dashboard() {
   const [slideIdx, setSlideIdx] = useState(0);
   const [notifIdx, setNotifIdx] = useState(0);
   const [annonces, setAnnonces] = useState([]);
+  const [lienWhatsapp, setLienWhatsapp] = useState('https://wa.me/237600000000');
   const slideTimerRef = useRef(null);
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -62,8 +63,12 @@ export default function Dashboard() {
 
   const loadAnnonces = async () => {
     try {
-      const res = await api.get('/annonces');
-      setAnnonces(res.data.annonces || []);
+      const [annoncesRes, settingsRes] = await Promise.all([
+        api.get('/annonces'),
+        api.get('/settings/public'),
+      ]);
+      setAnnonces(annoncesRes.data.annonces || []);
+      if (settingsRes.data.lien_whatsapp) setLienWhatsapp(settingsRes.data.lien_whatsapp);
     } catch {}
   };
 
@@ -324,7 +329,7 @@ export default function Dashboard() {
       <BottomNav />
 
       {/* WhatsApp flottant */}
-      <a href="https://wa.me/237600000000" target="_blank" rel="noreferrer" style={{
+      <a href={lienWhatsapp} target="_blank" rel="noreferrer" style={{
         position: 'fixed', bottom: 80, right: 16, zIndex: 200,
         width: 50, height: 50, borderRadius: '50%',
         background: '#25D366',

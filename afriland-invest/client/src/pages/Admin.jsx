@@ -1400,6 +1400,51 @@ export default function Admin() {
               </button>
             </div>
 
+            {/* ── Liens service client ── */}
+            <div style={{ background: '#fff', borderRadius: 16, padding: '18px 16px', marginBottom: 14, boxShadow: 'var(--shadow-card)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: '#25D36620', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className="fab fa-whatsapp" style={{ color: '#25D366', fontSize: 16 }} />
+                </div>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: 14 }}>Liens service client</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>Bouton flottant WhatsApp & liens FAQ</p>
+                </div>
+              </div>
+
+              <div className="input-group" style={{ marginBottom: 10 }}>
+                <label><i className="fab fa-whatsapp" style={{ color: '#25D366', marginRight: 6 }} />WhatsApp service client (bouton flottant)</label>
+                <input type="url" value={settings.lien_whatsapp || ''}
+                  onChange={e => setSettings(s => ({ ...s, lien_whatsapp: e.target.value }))}
+                  placeholder="https://wa.me/237600000000" />
+              </div>
+              <div className="input-group" style={{ marginBottom: 10 }}>
+                <label><i className="fab fa-telegram" style={{ color: '#229ED9', marginRight: 6 }} />Lien chaîne Telegram (page FAQ)</label>
+                <input type="url" value={settings.lien_telegram || ''}
+                  onChange={e => setSettings(s => ({ ...s, lien_telegram: e.target.value }))}
+                  placeholder="https://t.me/votrechaîne" />
+              </div>
+              <div className="input-group" style={{ marginBottom: 14 }}>
+                <label><i className="fab fa-whatsapp" style={{ color: '#25D366', marginRight: 6 }} />Lien groupe WhatsApp (page FAQ)</label>
+                <input type="url" value={settings.lien_whatsapp_groupe || ''}
+                  onChange={e => setSettings(s => ({ ...s, lien_whatsapp_groupe: e.target.value }))}
+                  placeholder="https://chat.whatsapp.com/..." />
+              </div>
+
+              <button onClick={async () => {
+                try {
+                  await Promise.all([
+                    api.put('/admin/settings', { cle: 'lien_whatsapp', valeur: settings.lien_whatsapp || '' }),
+                    api.put('/admin/settings', { cle: 'lien_telegram', valeur: settings.lien_telegram || '' }),
+                    api.put('/admin/settings', { cle: 'lien_whatsapp_groupe', valeur: settings.lien_whatsapp_groupe || '' }),
+                  ]);
+                  toast.success('Liens sauvegardés ✅');
+                } catch { toast.error('Erreur'); }
+              }} className="btn btn-primary" style={{ padding: '12px', borderRadius: 50 }}>
+                <i className="fas fa-save" style={{ marginRight: 8 }} />Enregistrer les liens
+              </button>
+            </div>
+
             {/* ── Horaires de retrait ── */}
             <div style={{ background: '#fff', borderRadius: 16, padding: '18px 16px', marginBottom: 14, boxShadow: 'var(--shadow-card)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>

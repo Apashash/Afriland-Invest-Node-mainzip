@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../hooks/useAuth.jsx';
@@ -17,6 +17,7 @@ const PAYS = [
 ];
 
 export default function Login() {
+  const [lienWhatsapp, setLienWhatsapp] = useState('https://wa.me/237600000000');
   const [tab, setTab] = useState('login');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -24,6 +25,12 @@ export default function Login() {
   const [regForm, setRegForm] = useState({ nom: '', indicatif: '+237', telephone: '', mot_de_passe: '', pays: 'Cameroun', code_parrain: '' });
   const { login, register } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    fetch('/api/settings/public').then(r => r.json()).then(d => {
+      if (d.lien_whatsapp) setLienWhatsapp(d.lien_whatsapp);
+    }).catch(() => {});
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -313,7 +320,7 @@ export default function Login() {
 
         {/* WhatsApp flottant */}
         <a
-          href="https://wa.me/237600000000"
+          href={lienWhatsapp}
           target="_blank" rel="noreferrer"
           style={{
             position: 'fixed', bottom: 24, right: 24, zIndex: 200,

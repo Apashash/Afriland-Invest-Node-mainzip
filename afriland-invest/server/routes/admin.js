@@ -422,6 +422,9 @@ const SETTINGS_DEFAULTS = {
   retrait_heure_debut: '9',
   retrait_heure_fin: '19',
   retrait_off: '0',
+  lien_whatsapp: '',
+  lien_telegram: '',
+  lien_whatsapp_groupe: '',
 };
 
 router.get('/settings', adminMiddleware, async (req, res) => {
