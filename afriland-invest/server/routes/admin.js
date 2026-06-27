@@ -12,45 +12,58 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
+const safeQ = async (sql, params = [], fallback = { rows: [] }) => {
+  try { return await query(sql, params); }
+  catch (e) { console.error('[admin] query error:', e.message); return fallback; }
+};
+
 router.get('/stats', adminMiddleware, async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
     const [usersRes, depotsValidesRes, retraitsValidesRes, commandesActifRes, depotsAttenteRes, retraitsAttenteRes, commandesUsersRes] = await Promise.all([
-      query('SELECT COUNT(*) FROM utilisateurs'),
-      query("SELECT montant FROM depots WHERE statut = 'valide'"),
-      query("SELECT montant FROM retraits WHERE statut = 'valide'"),
-      query("SELECT COUNT(*) FROM commandes WHERE statut = 'actif'"),
-      query("SELECT COUNT(*) FROM depots WHERE statut = 'en_attente'"),
-      query("SELECT COUNT(*) FROM retraits WHERE statut = 'en_attente'"),
-      query("SELECT DISTINCT user_id FROM commandes WHERE statut = 'actif' AND date_fin >= $1", [today]),
+      safeQ('SELECT COUNT(*) FROM utilisateurs', [], { rows: [{ count: '0' }] }),
+      safeQ("SELECT montant FROM depots WHERE statut = 'valide'"),
+      safeQ("SELECT montant FROM retraits WHERE statut = 'valide'"),
+      safeQ("SELECT COUNT(*) FROM commandes WHERE statut = 'actif'", [], { rows: [{ count: '0' }] }),
+      safeQ("SELECT COUNT(*) FROM depots WHERE statut = 'en_attente'", [], { rows: [{ count: '0' }] }),
+      safeQ("SELECT COUNT(*) FROM retraits WHERE statut = 'en_attente'", [], { rows: [{ count: '0' }] }),
+      safeQ("SELECT DISTINCT user_id FROM commandes WHERE statut = 'actif' AND date_fin >= $1", [today]),
     ]);
 
     const totalDepots = depotsValidesRes.rows.reduce((s, d) => s + parseFloat(d.montant || 0), 0);
     const totalRetraits = retraitsValidesRes.rows.reduce((s, r) => s + parseFloat(r.montant || 0), 0);
 
     res.json({
-      users: { count: parseInt(usersRes.rows[0].count) },
-      depots: { total: totalDepots, en_attente: parseInt(depotsAttenteRes.rows[0].count) },
-      retraits: { total: totalRetraits, en_attente: parseInt(retraitsAttenteRes.rows[0].count) },
-      commandes: { count: parseInt(commandesActifRes.rows[0].count) },
+      users: { count: parseInt(usersRes.rows[0]?.count || 0) },
+      depots: { total: totalDepots, en_attente: parseInt(depotsAttenteRes.rows[0]?.count || 0) },
+      retraits: { total: totalRetraits, en_attente: parseInt(retraitsAttenteRes.rows[0]?.count || 0) },
+      commandes: { count: parseInt(commandesActifRes.rows[0]?.count || 0) },
       users_avec_investissement: commandesUsersRes.rows.length,
     });
   } catch (err) {
+    console.error('[admin/stats]', err.message);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
 router.get('/users', adminMiddleware, async (req, res) => {
   try {
-    const { rows } = await query(
-      `SELECT u.id, u.nom, u.telephone, u.pays, u.date_inscription, u.role,
-              u.banni, u.retrait_bloque, u.retrait_bloque_vip,
-              COALESCE(s.solde, 0) AS solde
+    const usersRes = await safeQ(
+      `SELECT u.*, COALESCE(s.solde, u.solde, 0) AS solde_actuel
        FROM utilisateurs u LEFT JOIN soldes s ON s.user_id = u.id
-       ORDER BY u.date_inscription DESC LIMIT 200`
+       ORDER BY u.date_inscription DESC LIMIT 200`,
+      [], { rows: [] }
     );
-    res.json({ users: rows });
+    const users = usersRes.rows.map(u => ({
+      ...u,
+      solde: u.solde_actuel ?? u.solde ?? 0,
+      banni: u.banni ?? false,
+      retrait_bloque: u.retrait_bloque ?? false,
+      retrait_bloque_vip: u.retrait_bloque_vip ?? 0,
+    }));
+    res.json({ users });
   } catch (err) {
+    console.error('[admin/users]', err.message);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -178,12 +191,18 @@ router.delete('/users/:id/transaction-password', adminMiddleware, async (req, re
 router.put('/users/:id/ban', adminMiddleware, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
-    const { rows } = await query('SELECT banni FROM utilisateurs WHERE id = $1', [userId]);
+    const { rows } = await query('SELECT * FROM utilisateurs WHERE id = $1', [userId]);
     if (!rows[0]) return res.status(404).json({ error: 'Utilisateur introuvable' });
-    const newBan = !rows[0].banni;
-    await query('UPDATE utilisateurs SET banni = $1 WHERE id = $2', [newBan, userId]);
+    const newBan = !(rows[0].banni ?? false);
+    try {
+      await query('UPDATE utilisateurs SET banni = $1 WHERE id = $2', [newBan, userId]);
+    } catch {
+      await query('ALTER TABLE utilisateurs ADD COLUMN IF NOT EXISTS banni BOOLEAN DEFAULT false');
+      await query('UPDATE utilisateurs SET banni = $1 WHERE id = $2', [newBan, userId]);
+    }
     res.json({ success: true, banni: newBan, message: newBan ? 'Utilisateur banni' : 'Utilisateur débanni' });
   } catch (err) {
+    console.error('[admin/ban]', err.message);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -191,20 +210,30 @@ router.put('/users/:id/ban', adminMiddleware, async (req, res) => {
 router.put('/users/:id/block-withdrawal', adminMiddleware, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
-    const { rows } = await query('SELECT retrait_bloque FROM utilisateurs WHERE id = $1', [userId]);
+    const { rows } = await query('SELECT * FROM utilisateurs WHERE id = $1', [userId]);
     if (!rows[0]) return res.status(404).json({ error: 'Utilisateur introuvable' });
-    const newBlock = !rows[0].retrait_bloque;
+    const newBlock = !(rows[0].retrait_bloque ?? false);
     let vipNiveau = 0;
     if (newBlock) {
-      const vipRes = await query('SELECT niveau FROM vip WHERE user_id = $1', [userId]);
+      const vipRes = await safeQ('SELECT niveau FROM vip WHERE user_id = $1', [userId]);
       vipNiveau = vipRes.rows[0]?.niveau || 0;
     }
-    await query(
-      'UPDATE utilisateurs SET retrait_bloque = $1, retrait_bloque_vip = $2 WHERE id = $3',
-      [newBlock, newBlock ? vipNiveau : 0, userId]
-    );
+    try {
+      await query(
+        'UPDATE utilisateurs SET retrait_bloque = $1, retrait_bloque_vip = $2 WHERE id = $3',
+        [newBlock, newBlock ? vipNiveau : 0, userId]
+      );
+    } catch {
+      await query('ALTER TABLE utilisateurs ADD COLUMN IF NOT EXISTS retrait_bloque BOOLEAN DEFAULT false');
+      await query('ALTER TABLE utilisateurs ADD COLUMN IF NOT EXISTS retrait_bloque_vip INT DEFAULT 0');
+      await query(
+        'UPDATE utilisateurs SET retrait_bloque = $1, retrait_bloque_vip = $2 WHERE id = $3',
+        [newBlock, newBlock ? vipNiveau : 0, userId]
+      );
+    }
     res.json({ success: true, retrait_bloque: newBlock, message: newBlock ? 'Retrait bloqué' : 'Retrait débloqué' });
   } catch (err) {
+    console.error('[admin/block-withdrawal]', err.message);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
