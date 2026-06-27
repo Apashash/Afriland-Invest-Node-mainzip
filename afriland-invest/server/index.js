@@ -49,6 +49,26 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(CLIENT_DIST, 'index.html'));
 });
 
+// ── Health check ─────────────────────────────────────────────────
+app.get('/api/health', async (req, res) => {
+  const { pool } = require('./db');
+  let dbOk = false;
+  let version = 'v2.0-admin-panel';
+  try {
+    await pool.query('SELECT 1');
+    dbOk = true;
+  } catch (e) {
+    dbOk = false;
+  }
+  res.json({
+    status: 'ok',
+    version,
+    db: dbOk ? '✅ connecté' : '❌ non connecté',
+    env_db: !!(process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || process.env.POSTGRES_URL || process.env.DB_URL),
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // ── Auto-deploy webhook ──────────────────────────────────────────
 app.get('/api/deploy', (req, res) => {
   const secret = process.env.DEPLOY_SECRET || 'afriland2024';
