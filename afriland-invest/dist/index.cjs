@@ -1580,17 +1580,9 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/annonces", annoncesRoutes);
 app.use("/api/transactions", transactionsRoutes);
-app.use(express.static(CLIENT_DIST, { etag: false, lastModified: false }));
-app.get("*", (req, res) => {
-  if (req.path.startsWith("/api/")) {
-    return res.status(404).json({ error: "Route non trouv\xE9e" });
-  }
-  res.setHeader("Cache-Control", "no-store");
-  res.sendFile(path.join(CLIENT_DIST, "index.html"));
-});
 app.get("/api/health", async (req, res) => {
   const { pool } = require_db();
-  const version = "v2.0-admin-panel";
+  const version = "v2.1";
   const tables = ["utilisateurs", "soldes", "vip", "commandes", "planinvestissement", "depots", "retraits"];
   const result = { status: "ok", version, timestamp: (/* @__PURE__ */ new Date()).toISOString() };
   result.database_url_set = !!process.env.DATABASE_URL;
@@ -1631,6 +1623,14 @@ Red\xE9marrage dans 3 secondes...</pre>`);
     res.status(500).send(`<pre>\u274C Erreur:
 ${e.message}</pre>`);
   }
+});
+app.use(express.static(CLIENT_DIST, { etag: false, lastModified: false }));
+app.get("*", (req, res) => {
+  if (req.path.startsWith("/api/")) {
+    return res.status(404).json({ error: "Route non trouv\xE9e" });
+  }
+  res.setHeader("Cache-Control", "no-store");
+  res.sendFile(path.join(CLIENT_DIST, "index.html"));
 });
 app.use((err, req, res, next) => {
   console.error(err.stack);

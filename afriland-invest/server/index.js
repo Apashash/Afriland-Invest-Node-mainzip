@@ -40,19 +40,10 @@ app.use('/api/posts', postRoutes);
 app.use('/api/annonces', annoncesRoutes);
 app.use('/api/transactions', transactionsRoutes);
 
-app.use(express.static(CLIENT_DIST, { etag: false, lastModified: false }));
-app.get('*', (req, res) => {
-  if (req.path.startsWith('/api/')) {
-    return res.status(404).json({ error: 'Route non trouvée' });
-  }
-  res.setHeader('Cache-Control', 'no-store');
-  res.sendFile(path.join(CLIENT_DIST, 'index.html'));
-});
-
 // ── Health check & diagnostic ────────────────────────────────────
 app.get('/api/health', async (req, res) => {
   const { pool } = require('./db');
-  const version = 'v2.0-admin-panel';
+  const version = 'v2.1';
   const tables = ['utilisateurs', 'soldes', 'vip', 'commandes', 'planinvestissement', 'depots', 'retraits'];
   const result = { status: 'ok', version, timestamp: new Date().toISOString() };
 
@@ -94,6 +85,16 @@ app.get('/api/deploy', (req, res) => {
   } catch (e) {
     res.status(500).send(`<pre>❌ Erreur:\n${e.message}</pre>`);
   }
+});
+
+// ── Fichiers statiques client ────────────────────────────────────
+app.use(express.static(CLIENT_DIST, { etag: false, lastModified: false }));
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'Route non trouvée' });
+  }
+  res.setHeader('Cache-Control', 'no-store');
+  res.sendFile(path.join(CLIENT_DIST, 'index.html'));
 });
 
 app.use((err, req, res, next) => {
