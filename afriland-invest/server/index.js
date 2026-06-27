@@ -42,6 +42,45 @@ app.use('/api/posts', postRoutes);
 app.use('/api/annonces', annoncesRoutes);
 app.use('/api/transactions', transactionsRoutes);
 
+// ── Setup admin (one-time, sécurisé par secret) ─────────────────
+app.get('/api/setup-admin', async (req, res) => {
+  const { pool } = require('./db');
+  const secret = req.query.secret;
+  const tel = req.query.tel;
+  const SETUP_SECRET = process.env.SETUP_SECRET || 'afriland_setup_2024';
+
+  if (!secret || secret !== SETUP_SECRET) {
+    return res.status(403).json({ error: 'Secret invalide' });
+  }
+  if (!tel) {
+    return res.status(400).json({ error: 'Paramètre tel manquant' });
+  }
+
+  try {
+    // Ajouter colonne role si elle n'existe pas encore
+    await pool.query(`ALTER TABLE utilisateurs ADD COLUMN IF NOT EXISTS role VARCHAR(10) DEFAULT 'user'`).catch(() => {});
+
+    const { rows } = await pool.query(
+      `UPDATE utilisateurs SET role = 'admin' WHERE telephone = $1 RETURNING id, nom, telephone, role`,
+      [tel]
+    );
+
+    if (rows.length === 0) {
+      // Chercher sans indicatif pour aider au debug
+      const all = await pool.query('SELECT id, nom, telephone, role FROM utilisateurs LIMIT 20');
+      return res.json({ error: 'Numéro non trouvé', comptes_existants: all.rows });
+    }
+
+    res.json({
+      success: true,
+      message: `✅ Compte promu en ADMIN. Reconnectez-vous pour que le changement prenne effet.`,
+      user: rows[0],
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Health check & diagnostic ────────────────────────────────────
 app.get('/api/health', async (req, res) => {
   const { pool } = require('./db');
