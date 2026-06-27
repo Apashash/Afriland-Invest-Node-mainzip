@@ -36,8 +36,8 @@ var require_db = __commonJS({
           const ref = match[1];
           const pwd = encodeURIComponent(process.env.SUPABASE_DB_PASSWORD);
           return {
-            url: `postgresql://postgres.${ref}:${pwd}@aws-0-eu-central-1.pooler.supabase.com:6543/postgres`,
-            source: "SUPABASE_URL+SUPABASE_DB_PASSWORD"
+            url: `postgresql://postgres:${pwd}@db.${ref}.supabase.co:5432/postgres`,
+            source: "SUPABASE_URL+SUPABASE_DB_PASSWORD (direct)"
           };
         }
       }
