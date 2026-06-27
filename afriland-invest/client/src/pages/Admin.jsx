@@ -400,26 +400,6 @@ export default function Admin() {
               ))}
             </div>
 
-            {/* Quick actions */}
-            <h3 style={{ fontWeight: 800, fontSize: 15, marginBottom: 12, color: 'var(--text-dark)' }}>Accès rapide</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {MENU.filter(m => m.key !== 'home').map(m => (
-                <button key={m.key} onClick={() => navigate_(m.key)} style={{
-                  display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
-                  background: '#fff', borderRadius: 14, border: 'none', cursor: 'pointer',
-                  boxShadow: 'var(--shadow-card)', textAlign: 'left',
-                }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 11, background: m.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <i className={`fas ${m.icon}`} style={{ color: m.color, fontSize: 17 }} />
-                  </div>
-                  <span style={{ flex: 1, fontWeight: 600, fontSize: 14, color: 'var(--text-dark)' }}>{m.label}</span>
-                  {(m.badge || 0) > 0 && (
-                    <span style={{ background: '#FF3B30', color: '#fff', borderRadius: 20, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{m.badge}</span>
-                  )}
-                  <i className="fas fa-chevron-right" style={{ color: 'var(--text-muted)', fontSize: 12 }} />
-                </button>
-              ))}
-            </div>
           </div>
         )}
 
