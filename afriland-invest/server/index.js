@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const { execSync } = require('child_process');
 
 const { CLIENT_DIST, UPLOADS_DIR } = require('./config');
 
@@ -46,6 +47,22 @@ app.get('*', (req, res) => {
   }
   res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(CLIENT_DIST, 'index.html'));
+});
+
+// ── Auto-deploy webhook ──────────────────────────────────────────
+app.get('/api/deploy', (req, res) => {
+  const secret = process.env.DEPLOY_SECRET || 'afriland2024';
+  if (req.query.secret !== secret) {
+    return res.status(401).send('❌ Secret invalide');
+  }
+  try {
+    const dir = path.join(__dirname, '..');
+    const out = execSync(`cd ${dir} && git pull origin main 2>&1`, { timeout: 30000 }).toString();
+    res.send(`<pre style="font-family:monospace;padding:20px">✅ Déploiement réussi !\n\n${out}\n\nRedémarrage dans 3 secondes...</pre>`);
+    setTimeout(() => process.exit(0), 3000);
+  } catch (e) {
+    res.status(500).send(`<pre>❌ Erreur:\n${e.message}</pre>`);
+  }
 });
 
 app.use((err, req, res, next) => {

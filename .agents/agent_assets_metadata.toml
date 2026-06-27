@@ -6,3 +6,9 @@ id = "k26NWbg95apXT7lxO2TDS"
 uri = "file://afriland-invest/dist_ready.tar.gz"
 type = "unspecified"
 title = "dist_ready.tar.gz — Fichiers build à uploader sur Plesk"
+
+[[outputs]]
+id = "iS-ciODxPVUOYQdLeG3-E"
+uri = "file://afriland-invest/update_plesk.tar.gz"
+type = "unspecified"
+title = "update_plesk.tar.gz — Tous les fichiers modifiés"
