@@ -56,7 +56,18 @@ export default function Deposit() {
       setMinDepot(parseFloat(settingsRes.data.min_depot || 500));
       const userPays = userRes.data.pays;
       const userTel = userRes.data.telephone || '';
-      const chosenPays = (userPays && ops[userPays]) ? userPays : Object.keys(ops)[0];
+
+      const INDICATIFS_PAYS = {
+        '+237': 'Cameroun', '+225': "Côte d'Ivoire",
+        '+229': 'Bénin', '+226': 'Burkina Faso', '+228': 'Togo',
+      };
+      let resolvedPays = (userPays && ops[userPays]) ? userPays : null;
+      if (!resolvedPays) {
+        for (const [code, nom] of Object.entries(INDICATIFS_PAYS)) {
+          if (userTel.startsWith(code) && ops[nom]) { resolvedPays = nom; break; }
+        }
+      }
+      const chosenPays = resolvedPays || Object.keys(ops)[0];
       if (chosenPays) {
         const chosenOps = Array.isArray(ops[chosenPays]?.operators)
           ? ops[chosenPays].operators
