@@ -55,15 +55,25 @@ export default function Deposit() {
       setMinDepot(parseFloat(settingsRes.data.min_depot || 500));
       const firstPays = Object.keys(ops)[0];
       if (firstPays) {
-        setForm(f => ({ ...f, pays: firstPays, operateur: ops[firstPays]?.operators?.[0] || '' }));
+        const firstOps = Array.isArray(ops[firstPays]?.operators)
+          ? ops[firstPays].operators
+          : Object.values(ops[firstPays]?.operators || {});
+        setForm(f => ({ ...f, pays: firstPays, operateur: firstOps[0] || '' }));
       }
     } catch { toast.error('Erreur de chargement'); }
     finally { setLoading(false); }
   };
 
+  const getOpsArray = (paysOps) => {
+    if (!paysOps) return [];
+    if (Array.isArray(paysOps)) return paysOps;
+    if (typeof paysOps === 'object') return Object.values(paysOps);
+    return [];
+  };
+
   const handlePaysChange = (e) => {
     const pays = e.target.value;
-    const ops = operators[pays]?.operators || [];
+    const ops = getOpsArray(operators[pays]?.operators);
     setForm({ ...form, pays, operateur: ops[0] || '' });
   };
 
@@ -146,7 +156,12 @@ export default function Deposit() {
   };
 
   const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0));
-  const currentOps = operators[form.pays]?.operators || [];
+  const rawOps = operators[form.pays]?.operators;
+  const currentOps = Array.isArray(rawOps)
+    ? rawOps
+    : rawOps && typeof rawOps === 'object'
+      ? Object.values(rawOps)
+      : [];
   const statusColor = { valide: 'green', en_attente: 'yellow', rejete: 'red' };
 
   if (loading) return (
