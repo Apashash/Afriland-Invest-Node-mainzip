@@ -1094,6 +1094,159 @@ var require_referral = __commonJS({
   }
 });
 
+// server/cron.js
+var require_cron = __commonJS({
+  "server/cron.js"(exports2, module2) {
+    "use strict";
+    var { pool } = require_db();
+    var dernierPaiement = null;
+    var enCours = false;
+    async function lireDernierVersementDB() {
+      try {
+        const { rows } = await pool.query(
+          `SELECT valeur FROM settings WHERE cle = 'last_revenu_date'`
+        );
+        return rows[0]?.valeur || null;
+      } catch {
+        return null;
+      }
+    }
+    async function sauvegarderVersementDB(dateISO) {
+      try {
+        await pool.query(
+          `INSERT INTO settings (cle, valeur, description)
+       VALUES ('last_revenu_date', $1, 'Derni\xE8re date de versement des revenus journaliers')
+       ON CONFLICT (cle) DO UPDATE SET valeur = $1, date_maj = NOW()`,
+          [dateISO]
+        );
+      } catch (err) {
+        console.error("\u26A0\uFE0F  Impossible de sauvegarder last_revenu_date:", err.message);
+      }
+    }
+    async function payerRevenusJournaliers({ force = false } = {}) {
+      if (enCours) {
+        console.log("\u23F3 Paiement d\xE9j\xE0 en cours, ignor\xE9.");
+        return { skipped: true };
+      }
+      enCours = true;
+      console.log("\u{1F4B0} D\xE9marrage du versement des revenus journaliers...");
+      const client = await pool.connect();
+      let creditees = 0;
+      let terminees = 0;
+      let totalVerse = 0;
+      const errors = [];
+      try {
+        const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+        if (!force) {
+          const derniere = await lireDernierVersementDB();
+          if (derniere && derniere.startsWith(today)) {
+            console.log(`\u2705 Versement du ${today} d\xE9j\xE0 effectu\xE9 \u2014 ignor\xE9.`);
+            dernierPaiement = derniere;
+            enCours = false;
+            return { skipped: true, reason: "already_paid_today", date: derniere };
+          }
+        }
+        const { rows: commandes } = await client.query(
+          `SELECT id, user_id, revenu_journalier, date_fin, montant
+       FROM commandes
+       WHERE statut = 'actif'`
+        );
+        console.log(`\u{1F4CB} ${commandes.length} commande(s) active(s) trouv\xE9e(s)`);
+        for (const cmd of commandes) {
+          try {
+            const dateFin = new Date(cmd.date_fin);
+            const maintenant = new Date(today);
+            if (maintenant > dateFin) {
+              await client.query(
+                `UPDATE commandes SET statut = 'termine' WHERE id = $1`,
+                [cmd.id]
+              );
+              terminees++;
+              continue;
+            }
+            const revenu = parseFloat(cmd.revenu_journalier);
+            if (!revenu || revenu <= 0) continue;
+            await client.query("BEGIN");
+            await client.query(
+              `INSERT INTO soldes (user_id, solde, date_maj) VALUES ($1, $2, NOW())
+           ON CONFLICT (user_id) DO UPDATE SET solde = soldes.solde + $2, date_maj = NOW()`,
+              [cmd.user_id, revenu]
+            );
+            await client.query(
+              `UPDATE utilisateurs SET revenus_totaux = COALESCE(revenus_totaux, 0) + $1 WHERE id = $2`,
+              [revenu, cmd.user_id]
+            );
+            await client.query(
+              `INSERT INTO historique_revenus (user_id, commande_id, montant, type, date_paiement)
+           VALUES ($1, $2, $3, 'revenu_journalier', NOW())`,
+              [cmd.user_id, cmd.id, revenu]
+            );
+            await client.query("COMMIT");
+            creditees++;
+            totalVerse += revenu;
+          } catch (err) {
+            await client.query("ROLLBACK").catch(() => {
+            });
+            errors.push(`commande #${cmd.id}: ${err.message}`);
+            console.error(`\u274C Erreur commande #${cmd.id}:`, err.message);
+          }
+        }
+        dernierPaiement = (/* @__PURE__ */ new Date()).toISOString();
+        await sauvegarderVersementDB(dernierPaiement);
+        console.log(`\u2705 Versement termin\xE9 \u2014 ${creditees} cr\xE9dit\xE9s, ${terminees} termin\xE9es, ${totalVerse.toFixed(0)} FCFA vers\xE9s`);
+        if (errors.length) console.warn(`\u26A0\uFE0F  ${errors.length} erreur(s):`, errors);
+        return { creditees, terminees, totalVerse, errors, date: dernierPaiement };
+      } finally {
+        client.release();
+        enCours = false;
+      }
+    }
+    function getDernierPaiement() {
+      return dernierPaiement;
+    }
+    function isEnCours() {
+      return enCours;
+    }
+    function msJusquaHeure(heure = 2) {
+      const maintenant = /* @__PURE__ */ new Date();
+      const prochaine = /* @__PURE__ */ new Date();
+      prochaine.setUTCHours(heure, 0, 0, 0);
+      if (prochaine <= maintenant) {
+        prochaine.setUTCDate(prochaine.getUTCDate() + 1);
+      }
+      return prochaine - maintenant;
+    }
+    async function demarrerCronJournalier2() {
+      const heureCible = 2;
+      const derniere = await lireDernierVersementDB();
+      dernierPaiement = derniere;
+      const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+      const heureUTC = (/* @__PURE__ */ new Date()).getUTCHours();
+      const dejaPaye = derniere && derniere.startsWith(today);
+      if (!dejaPaye && heureUTC >= heureCible) {
+        console.log(`\u{1F504} Red\xE9marrage d\xE9tect\xE9 \u2014 versement du ${today} manqu\xE9, ex\xE9cution imm\xE9diate...`);
+        await payerRevenusJournaliers().catch(
+          (err) => console.error("\u274C Erreur rattrapage au d\xE9marrage:", err.message)
+        );
+      }
+      function planifierProchain() {
+        const delai = msJusquaHeure(heureCible);
+        const heures = Math.floor(delai / 36e5);
+        const minutes = Math.floor(delai % 36e5 / 6e4);
+        console.log(`\u23F0 Prochain versement automatique dans ${heures}h${minutes}m (02:00 UTC)`);
+        setTimeout(async () => {
+          await payerRevenusJournaliers().catch(
+            (err) => console.error("\u274C Erreur cron journalier:", err.message)
+          );
+          planifierProchain();
+        }, delai);
+      }
+      planifierProchain();
+    }
+    module2.exports = { payerRevenusJournaliers, demarrerCronJournalier: demarrerCronJournalier2, getDernierPaiement, isEnCours };
+  }
+});
+
 // server/routes/admin.js
 var require_admin = __commonJS({
   "server/routes/admin.js"(exports2, module2) {
@@ -1677,6 +1830,39 @@ var require_admin = __commonJS({
         res.status(500).json({ error: "Erreur serveur" });
       }
     });
+    router.post("/payer-revenus", adminMiddleware, async (req, res) => {
+      const { payerRevenusJournaliers, getDernierPaiement, isEnCours } = require_cron();
+      if (isEnCours()) {
+        return res.status(409).json({ error: "Un versement est d\xE9j\xE0 en cours, veuillez patienter." });
+      }
+      try {
+        const result = await payerRevenusJournaliers();
+        if (result.skipped) {
+          const date = result.date ? new Date(result.date) : null;
+          const dateStr = date ? date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
+          const heureStr = date ? date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "";
+          return res.json({
+            success: false,
+            skipped: true,
+            message: `Le versement du jour a d\xE9j\xE0 \xE9t\xE9 effectu\xE9 le ${dateStr} \xE0 ${heureStr}.`
+          });
+        }
+        res.json({
+          success: true,
+          message: `\u2705 ${result.creditees} investisseur(s) cr\xE9dit\xE9(s), ${result.terminees} plan(s) termin\xE9(s). Total vers\xE9 : ${(result.totalVerse || 0).toFixed(0)} FCFA.`,
+          details: result
+        });
+      } catch (err) {
+        res.status(500).json({ error: err.message || "Erreur lors du versement" });
+      }
+    });
+    router.get("/payer-revenus/statut", adminMiddleware, async (req, res) => {
+      const { getDernierPaiement, isEnCours } = require_cron();
+      res.json({
+        en_cours: isEnCours(),
+        dernier_paiement: getDernierPaiement()
+      });
+    });
     module2.exports = router;
   }
 });
@@ -1947,7 +2133,8 @@ var require_notifications = __commonJS({
           bonus: "Bonus roue de la fortune",
           credit_admin: "Cr\xE9dit administrateur",
           cadeau_vip: "Cadeau VIP d\xE9bloqu\xE9",
-          revenu: "Revenu investissement vers\xE9"
+          revenu: "Revenu investissement vers\xE9",
+          revenu_journalier: "Revenu journalier vers\xE9 \u{1F4B0}"
         };
         const STATUT_LABELS = {
           valide: "Valid\xE9",
@@ -2376,6 +2563,7 @@ var transactionsRoutes = require_transactions();
 var notificationsRoutes = require_notifications();
 var webhookRoutes = require_webhook();
 var { runMigrations } = require_migrate();
+var { demarrerCronJournalier } = require_cron();
 var app = express();
 var PORT = process.env.PORT || 5e3;
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -2486,7 +2674,10 @@ app.get("/api/deploy", (req, res) => {
   }
   try {
     const dir = path.join(__dirname, "..");
-    const out = execSync(`cd ${dir} && git pull origin main 2>&1`, { timeout: 3e4 }).toString();
+    const out = execSync(
+      `cd ${dir} && git fetch origin 2>&1 && git reset --hard origin/main 2>&1`,
+      { timeout: 3e4 }
+    ).toString();
     res.send(`<pre style="font-family:monospace;padding:20px">\u2705 D\xE9ploiement r\xE9ussi !
 
 ${out}
@@ -2523,4 +2714,5 @@ app.listen(PORT, "0.0.0.0", async () => {
   } catch (err) {
     console.error("\u274C Migration error:", err.message);
   }
+  demarrerCronJournalier();
 });
