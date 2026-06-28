@@ -5,14 +5,12 @@ import api from '../lib/api';
 import BottomNav from '../components/BottomNav';
 import { useLanguage, LangToggle } from '../contexts/LanguageContext.jsx';
 
-const PAYS_METHODES = {
-  'Cameroun': ['MTN Mobile Money', 'Orange Money'],
-  "Côte d'Ivoire": ['MTN Money', 'Orange Money', 'Moov Money', 'Wave'],
-  'Sénégal': ['Orange Money', 'Wave', 'Free Money'],
-  'Mali': ['Orange Money', 'Moov Money'],
-  'Bénin': ['MTN Money', 'Moov Money'],
-  'Burkina Faso': ['Orange Money', 'Moov Money'],
-  'Togo': ['T-Money', 'Moov Money'],
+const PAYS_METHODES_FALLBACK = {
+  'Cameroun':       ['MTN Mobile Money', 'Orange Money'],
+  "Côte d'Ivoire":  ['MTN Mobile Money', 'Moov Money', 'Orange Money', 'Wave'],
+  'Bénin':          ['MTN Mobile Money', 'Moov Money'],
+  'Burkina Faso':   ['Moov Money', 'Orange Money'],
+  'Togo':           ['Flooz (Moov)', 'T-Money'],
 };
 
 const TYPE_CONFIG = {
@@ -45,6 +43,7 @@ export default function Wallet() {
   });
   const [wallets, setWallets] = useState([]);
   const [revenueHistory, setRevenueHistory] = useState([]);
+  const [paysMethodes, setPaysMethodes] = useState(PAYS_METHODES_FALLBACK);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
@@ -53,15 +52,39 @@ export default function Wallet() {
 
   const loadData = async () => {
     try {
-      const [walletRes, histRes] = await Promise.all([
+      const [walletRes, histRes, opsRes, userRes] = await Promise.all([
         api.get('/user/wallet'),
         api.get('/investment/revenue-history'),
+        api.get('/deposit/operators').catch(() => ({ data: [] })),
+        api.get('/user/profile').catch(() => ({ data: {} })),
       ]);
+
+      // Construire la carte pays → opérateurs depuis l'API
+      const ops = opsRes.data || [];
+      if (ops.length > 0) {
+        const map = {};
+        ops.forEach(o => { map[o.pays] = o.operateurs; });
+        setPaysMethodes(map);
+      }
+
+      const paysMap = ops.length > 0
+        ? (() => { const m = {}; ops.forEach(o => { m[o.pays] = o.operateurs; }); return m; })()
+        : PAYS_METHODES_FALLBACK;
+
       setWallets(walletRes.data.wallets);
+
       if (walletRes.data.wallets.length > 0) {
+        // Portefeuille existant : charger ses données
         const w = walletRes.data.wallets[0];
         setForm({ nom_portefeuille: w.nom_portefeuille, pays: w.pays, methode_paiement: w.methode_paiement, numero_telephone: w.numero_telephone });
+      } else {
+        // Nouveau portefeuille : pré-sélectionner le pays d'inscription
+        const userPays = userRes.data?.user?.pays || userRes.data?.pays || null;
+        const defaultPays = (userPays && paysMap[userPays]) ? userPays : Object.keys(paysMap)[0] || 'Cameroun';
+        const defaultMethode = paysMap[defaultPays]?.[0] || '';
+        setForm(f => ({ ...f, pays: defaultPays, methode_paiement: defaultMethode }));
       }
+
       setRevenueHistory(histRes.data.history || []);
     } catch { toast.error(t('loading_error')); }
     finally { setLoading(false); }
@@ -79,7 +102,7 @@ export default function Wallet() {
     finally { setSubmitting(false); }
   };
 
-  const methodes = PAYS_METHODES[form.pays] || [];
+  const methodes = paysMethodes[form.pays] || [];
 
   const inputStyle = {
     width: '100%', background: '#F7F7F7', border: '1.5px solid #E8E8E8',
@@ -178,10 +201,10 @@ export default function Wallet() {
               <div style={{ position: 'relative' }}>
                 <select value={form.pays} onChange={e => {
                   const newPays = e.target.value;
-                  const newMethodes = PAYS_METHODES[newPays] || [];
+                  const newMethodes = paysMethodes[newPays] || [];
                   setForm({ ...form, pays: newPays, methode_paiement: newMethodes[0] || '' });
                 }} style={{ ...inputStyle, paddingRight: 36 }}>
-                  {Object.keys(PAYS_METHODES).map(p => <option key={p} value={p}>{p}</option>)}
+                  {Object.keys(paysMethodes).map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
                 <i className="fas fa-chevron-down" style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#999', pointerEvents: 'none' }} />
               </div>
