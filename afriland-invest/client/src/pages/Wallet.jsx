@@ -64,11 +64,9 @@ export default function Wallet() {
       const inscritPays = userRes.data?.user?.pays || userRes.data?.pays || 'Cameroun';
       setUserPays(inscritPays);
 
-      // Opérateurs pour ce pays uniquement
-      const ops = opsRes.data || [];
-      const paysMap = {};
-      ops.forEach(o => { paysMap[o.pays] = o.operateurs; });
-      const opsForPays = paysMap[inscritPays] || PAYS_METHODES_FALLBACK[inscritPays] || [];
+      // Opérateurs pour ce pays uniquement (format : { pays_operateurs: { "Cameroun": { operators: [...] } } })
+      const paysOps = opsRes.data?.pays_operateurs || {};
+      const opsForPays = paysOps[inscritPays]?.operators || PAYS_METHODES_FALLBACK[inscritPays] || [];
       setMethodes(opsForPays);
 
       setWallets(walletRes.data.wallets);
