@@ -37,13 +37,14 @@ export default function Wallet() {
   const { t } = useLanguage();
   const [form, setForm] = useState({
     nom_portefeuille: '',
-    pays: 'Cameroun',
-    methode_paiement: 'MTN Mobile Money',
+    pays: '',
+    methode_paiement: '',
     numero_telephone: '',
   });
+  const [userPays, setUserPays] = useState('');
   const [wallets, setWallets] = useState([]);
   const [revenueHistory, setRevenueHistory] = useState([]);
-  const [paysMethodes, setPaysMethodes] = useState(PAYS_METHODES_FALLBACK);
+  const [methodes, setMethodes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
@@ -59,30 +60,26 @@ export default function Wallet() {
         api.get('/user/profile').catch(() => ({ data: {} })),
       ]);
 
-      // Construire la carte pays → opérateurs depuis l'API
-      const ops = opsRes.data || [];
-      if (ops.length > 0) {
-        const map = {};
-        ops.forEach(o => { map[o.pays] = o.operateurs; });
-        setPaysMethodes(map);
-      }
+      // Pays d'inscription de l'utilisateur
+      const inscritPays = userRes.data?.user?.pays || userRes.data?.pays || 'Cameroun';
+      setUserPays(inscritPays);
 
-      const paysMap = ops.length > 0
-        ? (() => { const m = {}; ops.forEach(o => { m[o.pays] = o.operateurs; }); return m; })()
-        : PAYS_METHODES_FALLBACK;
+      // Opérateurs pour ce pays uniquement
+      const ops = opsRes.data || [];
+      const paysMap = {};
+      ops.forEach(o => { paysMap[o.pays] = o.operateurs; });
+      const opsForPays = paysMap[inscritPays] || PAYS_METHODES_FALLBACK[inscritPays] || [];
+      setMethodes(opsForPays);
 
       setWallets(walletRes.data.wallets);
 
       if (walletRes.data.wallets.length > 0) {
-        // Portefeuille existant : charger ses données
         const w = walletRes.data.wallets[0];
-        setForm({ nom_portefeuille: w.nom_portefeuille, pays: w.pays, methode_paiement: w.methode_paiement, numero_telephone: w.numero_telephone });
+        // Garder l'opérateur sauvegardé s'il est valide, sinon prendre le premier
+        const methodeValide = opsForPays.includes(w.methode_paiement) ? w.methode_paiement : (opsForPays[0] || '');
+        setForm({ nom_portefeuille: w.nom_portefeuille, pays: inscritPays, methode_paiement: methodeValide, numero_telephone: w.numero_telephone });
       } else {
-        // Nouveau portefeuille : pré-sélectionner le pays d'inscription
-        const userPays = userRes.data?.user?.pays || userRes.data?.pays || null;
-        const defaultPays = (userPays && paysMap[userPays]) ? userPays : Object.keys(paysMap)[0] || 'Cameroun';
-        const defaultMethode = paysMap[defaultPays]?.[0] || '';
-        setForm(f => ({ ...f, pays: defaultPays, methode_paiement: defaultMethode }));
+        setForm(f => ({ ...f, pays: inscritPays, methode_paiement: opsForPays[0] || '' }));
       }
 
       setRevenueHistory(histRes.data.history || []);
@@ -95,14 +92,12 @@ export default function Wallet() {
     if (!form.nom_portefeuille || !form.numero_telephone) return toast.error(t('fill_all'));
     setSubmitting(true);
     try {
-      await api.post('/user/wallet', form);
+      await api.post('/user/wallet', { ...form, pays: userPays });
       toast.success(t('wallet_saved'));
       loadData();
     } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
     finally { setSubmitting(false); }
   };
-
-  const methodes = paysMethodes[form.pays] || [];
 
   const inputStyle = {
     width: '100%', background: '#F7F7F7', border: '1.5px solid #E8E8E8',
@@ -198,22 +193,23 @@ export default function Wallet() {
 
             <div style={{ marginBottom: 14 }}>
               <label style={labelStyle}>{t('country')}</label>
-              <div style={{ position: 'relative' }}>
-                <select value={form.pays} onChange={e => {
-                  const newPays = e.target.value;
-                  const newMethodes = paysMethodes[newPays] || [];
-                  setForm({ ...form, pays: newPays, methode_paiement: newMethodes[0] || '' });
-                }} style={{ ...inputStyle, paddingRight: 36 }}>
-                  {Object.keys(paysMethodes).map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-                <i className="fas fa-chevron-down" style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#999', pointerEvents: 'none' }} />
+              <div style={{
+                ...inputStyle, display: 'flex', alignItems: 'center', gap: 8,
+                background: '#F0F0F0', color: '#555', cursor: 'not-allowed',
+              }}>
+                <i className="fas fa-lock" style={{ fontSize: 11, color: '#aaa' }} />
+                <span>{userPays || form.pays}</span>
               </div>
             </div>
 
             <div style={{ marginBottom: 14 }}>
               <label style={labelStyle}>{t('payment_method')}</label>
               <div style={{ position: 'relative' }}>
-                <select value={form.methode_paiement} onChange={e => setForm({ ...form, methode_paiement: e.target.value })} style={{ ...inputStyle, paddingRight: 36 }}>
+                <select
+                  value={form.methode_paiement}
+                  onChange={e => setForm({ ...form, methode_paiement: e.target.value })}
+                  style={{ ...inputStyle, paddingRight: 36 }}
+                >
                   {methodes.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
                 <i className="fas fa-chevron-down" style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#999', pointerEvents: 'none' }} />
