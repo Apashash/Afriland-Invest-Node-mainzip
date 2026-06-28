@@ -788,9 +788,75 @@ var require_deposit = __commonJS({
       try {
         const { transactionId } = req.params;
         const { status, data } = await callAshtech(`/v1/transaction/${transactionId}`, "GET");
+        if (data.status === "success") {
+          const depotRes = await query(
+            "SELECT * FROM depots WHERE ashtech_transaction_id = $1 AND statut = 'en_attente'",
+            [transactionId]
+          );
+          if (depotRes.rows[0]) {
+            const depot = depotRes.rows[0];
+            await withTransaction(async (client) => {
+              await client.query(
+                "UPDATE depots SET statut = 'valide', date_traitement = NOW() WHERE id = $1",
+                [depot.id]
+              );
+              await client.query(
+                `INSERT INTO soldes (user_id, solde, date_maj) VALUES ($1, $2, NOW())
+             ON CONFLICT (user_id) DO UPDATE SET solde = soldes.solde + $2, date_maj = NOW()`,
+                [depot.user_id, depot.montant]
+              );
+            });
+            console.log(`\u2705 Auto-cr\xE9dit via polling: ${depot.montant} FCFA \u2192 user_id=${depot.user_id}`);
+          }
+        }
+        if (data.status === "failed") {
+          await query(
+            "UPDATE depots SET statut = 'rejete', date_traitement = NOW() WHERE ashtech_transaction_id = $1 AND statut = 'en_attente'",
+            [transactionId]
+          );
+        }
         res.json({ status: data.status, data });
       } catch (err) {
+        console.error("Status check error:", err.message);
         res.status(500).json({ error: "Erreur v\xE9rification statut" });
+      }
+    });
+    router.get("/check/:depotId", authMiddleware, async (req, res) => {
+      try {
+        const depotRes = await query(
+          "SELECT * FROM depots WHERE id = $1 AND user_id = $2 AND type_paiement = 'automatique'",
+          [req.params.depotId, req.user.id]
+        );
+        const depot = depotRes.rows[0];
+        if (!depot) return res.status(404).json({ error: "D\xE9p\xF4t introuvable" });
+        if (depot.statut !== "en_attente") return res.json({ status: depot.statut, already_processed: true });
+        if (!depot.ashtech_transaction_id) return res.status(400).json({ error: "Pas de transaction Ashtech associ\xE9e" });
+        const { data } = await callAshtech(`/v1/transaction/${depot.ashtech_transaction_id}`, "GET");
+        if (data.status === "success") {
+          await withTransaction(async (client) => {
+            await client.query(
+              "UPDATE depots SET statut = 'valide', date_traitement = NOW() WHERE id = $1 AND statut = 'en_attente'",
+              [depot.id]
+            );
+            await client.query(
+              `INSERT INTO soldes (user_id, solde, date_maj) VALUES ($1, $2, NOW())
+           ON CONFLICT (user_id) DO UPDATE SET solde = soldes.solde + $2, date_maj = NOW()`,
+              [depot.user_id, depot.montant]
+            );
+          });
+          return res.json({ status: "success", credited: true, montant: depot.montant });
+        }
+        if (data.status === "failed") {
+          await query(
+            "UPDATE depots SET statut = 'rejete', date_traitement = NOW() WHERE id = $1 AND statut = 'en_attente'",
+            [depot.id]
+          );
+          return res.json({ status: "failed", credited: false });
+        }
+        res.json({ status: data.status, credited: false });
+      } catch (err) {
+        console.error("Check depot error:", err.message);
+        res.status(500).json({ error: "Erreur lors de la v\xE9rification" });
       }
     });
     router.post("/request", authMiddleware, upload.single("preuve"), async (req, res) => {

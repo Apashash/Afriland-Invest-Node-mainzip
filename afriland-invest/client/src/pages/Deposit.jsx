@@ -26,6 +26,7 @@ export default function Deposit() {
   const [solde, setSolde] = useState(0);
   const [minDepot, setMinDepot] = useState(500);
   const [tab, setTab] = useState('form');
+  const [checking, setChecking] = useState(null);
 
   const [form, setForm] = useState({ montant: '', pays: '', operateur: '', numero_payeur: '' });
   const [submitting, setSubmitting] = useState(false);
@@ -145,6 +146,33 @@ export default function Deposit() {
     } catch (err) {
       toast.error(err.response?.data?.error || 'OTP invalide');
     } finally { setOtpSubmitting(false); }
+  };
+
+  const handleCheck = async (depotId) => {
+    setChecking(depotId);
+    try {
+      const res = await api.get(`/deposit/check/${depotId}`);
+      const { status, credited, montant } = res.data;
+      if (credited) {
+        toast.success(`✅ Compte crédité : ${fmt(montant)} FCFA`, { duration: 6000 });
+        loadData();
+      } else if (status === 'success' && !credited) {
+        toast.success('Paiement confirmé, compte déjà crédité');
+        loadData();
+      } else if (status === 'failed') {
+        toast.error('Paiement refusé ou expiré');
+        loadData();
+      } else if (res.data.already_processed) {
+        toast.success('Ce dépôt a déjà été traité');
+        loadData();
+      } else {
+        toast('Paiement encore en cours de traitement…', { icon: '⏳' });
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Erreur lors de la vérification');
+    } finally {
+      setChecking(null);
+    }
   };
 
   const resetForm = () => {
@@ -336,6 +364,24 @@ export default function Deposit() {
                           {t('copy')}
                         </button>
                       </div>
+                    )}
+                    {d.statut === 'en_attente' && d.type_paiement === 'automatique' && (
+                      <button
+                        onClick={() => handleCheck(d.id)}
+                        disabled={checking === d.id}
+                        style={{
+                          marginTop: 8, width: '100%', background: '#F0FFF4',
+                          border: '1.5px solid #22c55e', borderRadius: 10,
+                          padding: '8px', color: '#22c55e', fontSize: 13,
+                          fontWeight: 700, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        }}
+                      >
+                        {checking === d.id
+                          ? <><span className="loading-spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Vérification…</>
+                          : '🔄 Vérifier le paiement'
+                        }
+                      </button>
                     )}
                   </div>
                 ))
