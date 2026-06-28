@@ -261,6 +261,8 @@ router.put('/users/:id/block-withdrawal', adminMiddleware, async (req, res) => {
 router.get('/users/:id/transactions', adminMiddleware, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
+    const PAGE_SIZE = 30;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
     const [depotsRes, retraitsRes, commandesRes, revenusRes, userRes] = await Promise.all([
       query('SELECT * FROM depots WHERE user_id = $1 ORDER BY date_depot DESC', [userId]),
       query('SELECT * FROM retraits WHERE user_id = $1 ORDER BY date_demande DESC', [userId]),
@@ -273,13 +275,16 @@ router.get('/users/:id/transactions', adminMiddleware, async (req, res) => {
     const mapR = (r) => ({ id: `r${r.id}`, kind: 'retrait', label: 'Retrait', montant: parseFloat(r.montant || 0), sens: '-', statut: r.statut, date: r.date_demande, reference: r.reference });
     const mapC = (c) => ({ id: `c${c.id}`, kind: 'investissement', label: `Investissement — ${c.plan_nom || ''}`, montant: parseFloat(c.montant || 0), sens: '-', statut: c.statut, date: c.date_debut });
     const mapHR = (h) => ({ id: `h${h.id}`, kind: h.type || 'revenu', label: h.type === 'parrainage' ? 'Commission parrainage' : h.type === 'credit_admin' ? 'Crédit administrateur' : h.type === 'bonus' ? 'Bonus roue' : 'Revenu investissement', montant: parseFloat(h.montant || 0), sens: '+', statut: 'valide', date: h.date_paiement });
-    const transactions = [
+    const all = [
       ...depotsRes.rows.map(mapD),
       ...retraitsRes.rows.map(mapR),
       ...commandesRes.rows.map(mapC),
       ...revenusRes.rows.map(mapHR),
     ].sort((a, b) => new Date(b.date) - new Date(a.date));
-    res.json({ transactions, user });
+    const total = all.length;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const transactions = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    res.json({ transactions, user, total, page, totalPages });
   } catch (err) {
     console.error('[admin/user-transactions]', err.message);
     res.status(500).json({ error: 'Erreur serveur' });

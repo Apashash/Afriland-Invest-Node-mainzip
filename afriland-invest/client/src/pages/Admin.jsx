@@ -315,6 +315,9 @@ export default function Admin() {
   const [userTxModal, setUserTxModal] = useState(null);
   const [userTxList, setUserTxList] = useState([]);
   const [userTxLoading, setUserTxLoading] = useState(false);
+  const [userTxPage, setUserTxPage] = useState(1);
+  const [userTxTotal, setUserTxTotal] = useState(0);
+  const [userTxTotalPages, setUserTxTotalPages] = useState(1);
   const [payingRevenu, setPayingRevenu] = useState(false);
   const [dernierVersement, setDernierVersement] = useState(null);
 
@@ -502,14 +505,30 @@ export default function Admin() {
     } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
   };
 
-  const handleViewUserTx = async (u) => {
+  const handleViewUserTx = async (u, page = 1) => {
     setActionMenu(null);
     setUserTxModal(u);
     setUserTxList([]);
     setUserTxLoading(true);
+    setUserTxPage(page);
     try {
-      const res = await api.get(`/admin/users/${u.id}/transactions`);
+      const res = await api.get(`/admin/users/${u.id}/transactions?page=${page}`);
       setUserTxList(res.data.transactions || []);
+      setUserTxTotal(res.data.total || 0);
+      setUserTxTotalPages(res.data.totalPages || 1);
+    } catch { toast.error('Erreur lors du chargement'); }
+    finally { setUserTxLoading(false); }
+  };
+
+  const handleUserTxPage = async (u, page) => {
+    setUserTxList([]);
+    setUserTxLoading(true);
+    setUserTxPage(page);
+    try {
+      const res = await api.get(`/admin/users/${u.id}/transactions?page=${page}`);
+      setUserTxList(res.data.transactions || []);
+      setUserTxTotal(res.data.total || 0);
+      setUserTxTotalPages(res.data.totalPages || 1);
     } catch { toast.error('Erreur lors du chargement'); }
     finally { setUserTxLoading(false); }
   };
@@ -890,7 +909,7 @@ export default function Admin() {
                     </div>
                     <div>
                       <p style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>Transactions de {userTxModal.nom}</p>
-                      <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>{userTxModal.telephone} · {userTxList.length} opération(s)</p>
+                      <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>{userTxModal.telephone} · {userTxTotal} opération(s)</p>
                     </div>
                   </div>
                   <button onClick={() => setUserTxModal(null)} style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 14 }}>✕</button>
@@ -908,27 +927,50 @@ export default function Admin() {
                     <i className="fas fa-receipt" style={{ fontSize: 32, color: '#CCC', marginBottom: 12 }} />
                     <p style={{ color: '#999', fontWeight: 600 }}>Aucune transaction</p>
                   </div>
-                ) : userTxList.map(t => {
-                  const kindColor = { depot: '#34C759', retrait: '#FF3B30', investissement: '#5856D6', parrainage: '#FF9500', revenu: '#007AFF', credit_admin: '#FF9500', bonus: '#FF9500' };
-                  const kindIcon = { depot: 'fa-arrow-down', retrait: 'fa-arrow-up', investissement: 'fa-chart-line', parrainage: 'fa-users', revenu: 'fa-coins', credit_admin: 'fa-coins', bonus: 'fa-dice' };
-                  const color = kindColor[t.kind] || '#999';
-                  const icon = kindIcon[t.kind] || 'fa-circle';
-                  return (
-                    <div key={t.id} style={{ background: '#fff', borderRadius: 14, padding: '12px 14px', marginBottom: 8, boxShadow: '0 1px 6px rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ width: 38, height: 38, borderRadius: 10, background: color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <i className={`fas ${icon}`} style={{ color, fontSize: 14 }} />
+                ) : (
+                  <>
+                    {userTxList.map(t => {
+                      const kindColor = { depot: '#34C759', retrait: '#FF3B30', investissement: '#5856D6', parrainage: '#FF9500', revenu: '#007AFF', credit_admin: '#FF9500', bonus: '#FF9500' };
+                      const kindIcon = { depot: 'fa-arrow-down', retrait: 'fa-arrow-up', investissement: 'fa-chart-line', parrainage: 'fa-users', revenu: 'fa-coins', credit_admin: 'fa-coins', bonus: 'fa-dice' };
+                      const color = kindColor[t.kind] || '#999';
+                      const icon = kindIcon[t.kind] || 'fa-circle';
+                      return (
+                        <div key={t.id} style={{ background: '#fff', borderRadius: 14, padding: '12px 14px', marginBottom: 8, boxShadow: '0 1px 6px rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{ width: 38, height: 38, borderRadius: 10, background: color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <i className={`fas ${icon}`} style={{ color, fontSize: 14 }} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-dark)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.label}</p>
+                            <p style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{t.date ? new Date(t.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</p>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <p style={{ fontWeight: 800, fontSize: 14, color: t.sens === '+' ? '#34C759' : '#FF3B30' }}>{t.sens}{fmt(t.montant)} <span style={{ fontSize: 11, fontWeight: 500 }}>FCFA</span></p>
+                            <StatusBadge statut={t.statut} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {userTxTotalPages > 1 && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, paddingBottom: 4 }}>
+                        <button
+                          onClick={() => handleUserTxPage(userTxModal, userTxPage - 1)}
+                          disabled={userTxPage <= 1}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: 'none', background: userTxPage <= 1 ? '#E5E5E5' : '#E07800', color: userTxPage <= 1 ? '#AAA' : '#fff', fontWeight: 700, fontSize: 13, cursor: userTxPage <= 1 ? 'not-allowed' : 'pointer' }}
+                        >
+                          <i className="fas fa-chevron-left" style={{ fontSize: 11 }} /> Précédent
+                        </button>
+                        <p style={{ fontSize: 12, color: '#888', fontWeight: 600 }}>Page {userTxPage} / {userTxTotalPages}</p>
+                        <button
+                          onClick={() => handleUserTxPage(userTxModal, userTxPage + 1)}
+                          disabled={userTxPage >= userTxTotalPages}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, border: 'none', background: userTxPage >= userTxTotalPages ? '#E5E5E5' : '#E07800', color: userTxPage >= userTxTotalPages ? '#AAA' : '#fff', fontWeight: 700, fontSize: 13, cursor: userTxPage >= userTxTotalPages ? 'not-allowed' : 'pointer' }}
+                        >
+                          Suivant <i className="fas fa-chevron-right" style={{ fontSize: 11 }} />
+                        </button>
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-dark)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.label}</p>
-                        <p style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{t.date ? new Date(t.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</p>
-                      </div>
-                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <p style={{ fontWeight: 800, fontSize: 14, color: t.sens === '+' ? '#34C759' : '#FF3B30' }}>{t.sens}{fmt(t.montant)} <span style={{ fontSize: 11, fontWeight: 500 }}>FCFA</span></p>
-                        <StatusBadge statut={t.statut} />
-                      </div>
-                    </div>
-                  );
-                })}
+                    )}
+                  </>
+                )}
               </div>
             </div>
           </div>
