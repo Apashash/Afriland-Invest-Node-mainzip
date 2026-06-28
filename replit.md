@@ -1,36 +1,37 @@
-# [Project name]
+# Afriland Invest
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A French-language investment platform where users can register, make deposits, purchase investment plans, earn returns, refer friends, and request withdrawals. Admins manage users, plans, announcements, and settings.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `cd afriland-invest && node server/index.js` — start the server (port 5000, serves both API and built frontend)
+- `cd afriland-invest && npm run build:client` — rebuild the React frontend into `afriland-invest/dist/public`
+- `cd afriland-invest && npm run build` — build both client and server bundle
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- **Backend**: Node.js + Express 4, PostgreSQL (`pg` driver), JWT auth, bcryptjs
+- **Frontend**: React 18 + Vite 5, served as static files from `afriland-invest/dist/public`
+- **Database**: Replit built-in PostgreSQL (via `PGHOST`/`PGUSER`/`PGDATABASE` env vars)
+- **Uploads**: Local disk storage via multer (`afriland-invest/uploads/`)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- Server entry: `afriland-invest/server/index.js`
+- Routes: `afriland-invest/server/routes/` (auth, user, investment, deposit, withdrawal, referral, admin, posts, annonces, transactions, notifications)
+- DB connection: `afriland-invest/server/db.js` — supports Replit PG env vars natively
+- DB migrations: `afriland-invest/server/migrate.js` — runs automatically on server start
+- Frontend: `afriland-invest/client/src/`
+- Built frontend: `afriland-invest/dist/public/`
+- Uploads: `afriland-invest/uploads/`
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
-
-## Product
-
-_Describe the high-level user-facing capabilities of this app once they exist._
+- The server serves the built React app as static files — no separate dev server in production
+- Migrations run automatically on every server start (idempotent via `IF NOT EXISTS` / `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`)
+- Auth is custom JWT-based (not Replit Auth) — users log in with phone number + password
+- No external API integrations — payments are manual (users upload proof of payment, admins approve)
+- The `db.js` connection logic auto-detects Replit's `PGHOST` env vars
 
 ## User preferences
 
@@ -38,8 +39,6 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- After editing client code, you must run `npm run build:client` from `afriland-invest/` and restart the workflow
+- JWT_SECRET is set in `.replit` under `[userenv.shared]` — do not remove it
+- The `dist/public` directory must exist before the server starts; it's pre-built and committed
