@@ -1591,25 +1591,30 @@ var require_admin = __commonJS({
     router.get("/users/:id/transactions", adminMiddleware, async (req, res) => {
       try {
         const userId = parseInt(req.params.id);
+        const PAGE_SIZE = 30;
+        const page = Math.max(1, parseInt(req.query.page) || 1);
         const [depotsRes, retraitsRes, commandesRes, revenusRes, userRes] = await Promise.all([
           query("SELECT * FROM depots WHERE user_id = $1 ORDER BY date_depot DESC", [userId]),
           query("SELECT * FROM retraits WHERE user_id = $1 ORDER BY date_demande DESC", [userId]),
           query("SELECT c.*, p.nom AS plan_nom FROM commandes c LEFT JOIN planinvestissement p ON c.plan_id = p.id WHERE c.user_id = $1 ORDER BY c.date_debut DESC", [userId]),
-          query("SELECT * FROM historique_revenus WHERE user_id = $1 ORDER BY date DESC", [userId]),
+          query("SELECT * FROM historique_revenus WHERE user_id = $1 ORDER BY date_paiement DESC", [userId]),
           query("SELECT id, nom, telephone FROM utilisateurs WHERE id = $1", [userId])
         ]);
         const user = userRes.rows[0] || null;
         const mapD = (d) => ({ id: `d${d.id}`, kind: "depot", label: "D\xE9p\xF4t", montant: parseFloat(d.montant || 0), sens: "+", statut: d.statut, date: d.date_depot, reference: d.reference });
         const mapR = (r) => ({ id: `r${r.id}`, kind: "retrait", label: "Retrait", montant: parseFloat(r.montant || 0), sens: "-", statut: r.statut, date: r.date_demande, reference: r.reference });
         const mapC = (c) => ({ id: `c${c.id}`, kind: "investissement", label: `Investissement \u2014 ${c.plan_nom || ""}`, montant: parseFloat(c.montant || 0), sens: "-", statut: c.statut, date: c.date_debut });
-        const mapHR = (h) => ({ id: `h${h.id}`, kind: h.type || "revenu", label: h.type === "parrainage" ? "Commission parrainage" : h.type === "credit_admin" ? "Cr\xE9dit administrateur" : h.type === "bonus" ? "Bonus roue" : "Revenu investissement", montant: parseFloat(h.montant || 0), sens: "+", statut: "valide", date: h.date });
-        const transactions = [
+        const mapHR = (h) => ({ id: `h${h.id}`, kind: h.type || "revenu", label: h.type === "parrainage" ? "Commission parrainage" : h.type === "credit_admin" ? "Cr\xE9dit administrateur" : h.type === "bonus" ? "Bonus roue" : "Revenu investissement", montant: parseFloat(h.montant || 0), sens: "+", statut: "valide", date: h.date_paiement });
+        const all = [
           ...depotsRes.rows.map(mapD),
           ...retraitsRes.rows.map(mapR),
           ...commandesRes.rows.map(mapC),
           ...revenusRes.rows.map(mapHR)
         ].sort((a, b) => new Date(b.date) - new Date(a.date));
-        res.json({ transactions, user });
+        const total = all.length;
+        const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        const transactions = all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+        res.json({ transactions, user, total, page, totalPages });
       } catch (err) {
         console.error("[admin/user-transactions]", err.message);
         res.status(500).json({ error: "Erreur serveur" });
