@@ -128,11 +128,11 @@ var require_auth = __commonJS({
         const { rows } = await query("SELECT * FROM utilisateurs WHERE telephone = $1", [full_tel]);
         const user = rows[0];
         if (!user) {
-          return res.status(401).json({ error: "Aucun compte trouv\xE9 avec ce num\xE9ro" });
+          return res.status(401).json({ error: "Le num\xE9ro de t\xE9l\xE9phone ou le mot de passe est incorrect" });
         }
         const validPassword = await bcrypt.compare(mot_de_passe, user.mot_de_passe);
         if (!validPassword) {
-          return res.status(401).json({ error: "Mot de passe incorrect" });
+          return res.status(401).json({ error: "Le num\xE9ro de t\xE9l\xE9phone ou le mot de passe est incorrect" });
         }
         const token = jwt.sign(
           { id: user.id, nom: user.nom, telephone: user.telephone, role: user.role || "user" },
@@ -1348,15 +1348,33 @@ var require_admin = __commonJS({
     };
     router.get("/stats", adminMiddleware, async (req, res) => {
       try {
-        const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-        const [usersRes, depotsValidesRes, retraitsValidesRes, commandesActifRes, depotsAttenteRes, retraitsAttenteRes, commandesUsersRes] = await Promise.all([
+        const now = /* @__PURE__ */ new Date();
+        const today = now.toISOString().split("T")[0];
+        const yesterday = new Date(now - 864e5).toISOString().split("T")[0];
+        const [
+          usersRes,
+          depotsValidesRes,
+          retraitsValidesRes,
+          commandesActifRes,
+          depotsAttenteRes,
+          retraitsAttenteRes,
+          commandesUsersRes,
+          depotsTodayRes,
+          retraitsTodayRes,
+          depotsHierRes,
+          retraitsHierRes
+        ] = await Promise.all([
           safeQ("SELECT COUNT(*) FROM utilisateurs", [], { rows: [{ count: "0" }] }),
           safeQ("SELECT montant FROM depots WHERE statut = 'valide'"),
           safeQ("SELECT montant FROM retraits WHERE statut = 'valide'"),
           safeQ("SELECT COUNT(*) FROM commandes WHERE statut = 'actif'", [], { rows: [{ count: "0" }] }),
           safeQ("SELECT COUNT(*) FROM depots WHERE statut = 'en_attente'", [], { rows: [{ count: "0" }] }),
           safeQ("SELECT COUNT(*) FROM retraits WHERE statut = 'en_attente'", [], { rows: [{ count: "0" }] }),
-          safeQ("SELECT DISTINCT user_id FROM commandes WHERE statut = 'actif' AND date_fin >= $1", [today])
+          safeQ("SELECT DISTINCT user_id FROM commandes WHERE statut = 'actif' AND date_fin >= $1", [today]),
+          safeQ("SELECT COALESCE(SUM(montant),0) AS total, COUNT(*) AS nb FROM depots WHERE DATE(date_depot) = $1", [today], { rows: [{ total: "0", nb: "0" }] }),
+          safeQ("SELECT COALESCE(SUM(montant),0) AS total, COUNT(*) AS nb FROM retraits WHERE DATE(date_demande) = $1", [today], { rows: [{ total: "0", nb: "0" }] }),
+          safeQ("SELECT COALESCE(SUM(montant),0) AS total, COUNT(*) AS nb FROM depots WHERE DATE(date_depot) = $1", [yesterday], { rows: [{ total: "0", nb: "0" }] }),
+          safeQ("SELECT COALESCE(SUM(montant),0) AS total, COUNT(*) AS nb FROM retraits WHERE DATE(date_demande) = $1", [yesterday], { rows: [{ total: "0", nb: "0" }] })
         ]);
         const totalDepots = depotsValidesRes.rows.reduce((s, d) => s + parseFloat(d.montant || 0), 0);
         const totalRetraits = retraitsValidesRes.rows.reduce((s, r) => s + parseFloat(r.montant || 0), 0);
@@ -1365,7 +1383,15 @@ var require_admin = __commonJS({
           depots: { total: totalDepots, en_attente: parseInt(depotsAttenteRes.rows[0]?.count || 0) },
           retraits: { total: totalRetraits, en_attente: parseInt(retraitsAttenteRes.rows[0]?.count || 0) },
           commandes: { count: parseInt(commandesActifRes.rows[0]?.count || 0) },
-          users_avec_investissement: commandesUsersRes.rows.length
+          users_avec_investissement: commandesUsersRes.rows.length,
+          today: {
+            depots: { total: parseFloat(depotsTodayRes.rows[0]?.total || 0), nb: parseInt(depotsTodayRes.rows[0]?.nb || 0) },
+            retraits: { total: parseFloat(retraitsTodayRes.rows[0]?.total || 0), nb: parseInt(retraitsTodayRes.rows[0]?.nb || 0) }
+          },
+          hier: {
+            depots: { total: parseFloat(depotsHierRes.rows[0]?.total || 0), nb: parseInt(depotsHierRes.rows[0]?.nb || 0) },
+            retraits: { total: parseFloat(retraitsHierRes.rows[0]?.total || 0), nb: parseInt(retraitsHierRes.rows[0]?.nb || 0) }
+          }
         });
       } catch (err) {
         console.error("[admin/stats]", err.message);
@@ -1562,6 +1588,47 @@ var require_admin = __commonJS({
         res.status(500).json({ error: "Erreur serveur" });
       }
     });
+    router.get("/users/:id/transactions", adminMiddleware, async (req, res) => {
+      try {
+        const userId = parseInt(req.params.id);
+        const [depotsRes, retraitsRes, commandesRes, revenusRes, userRes] = await Promise.all([
+          query("SELECT * FROM depots WHERE user_id = $1 ORDER BY date_depot DESC", [userId]),
+          query("SELECT * FROM retraits WHERE user_id = $1 ORDER BY date_demande DESC", [userId]),
+          query("SELECT c.*, p.nom AS plan_nom FROM commandes c LEFT JOIN planinvestissement p ON c.plan_id = p.id WHERE c.user_id = $1 ORDER BY c.date_debut DESC", [userId]),
+          query("SELECT * FROM historique_revenus WHERE user_id = $1 ORDER BY date DESC", [userId]),
+          query("SELECT id, nom, telephone FROM utilisateurs WHERE id = $1", [userId])
+        ]);
+        const user = userRes.rows[0] || null;
+        const mapD = (d) => ({ id: `d${d.id}`, kind: "depot", label: "D\xE9p\xF4t", montant: parseFloat(d.montant || 0), sens: "+", statut: d.statut, date: d.date_depot, reference: d.reference });
+        const mapR = (r) => ({ id: `r${r.id}`, kind: "retrait", label: "Retrait", montant: parseFloat(r.montant || 0), sens: "-", statut: r.statut, date: r.date_demande, reference: r.reference });
+        const mapC = (c) => ({ id: `c${c.id}`, kind: "investissement", label: `Investissement \u2014 ${c.plan_nom || ""}`, montant: parseFloat(c.montant || 0), sens: "-", statut: c.statut, date: c.date_debut });
+        const mapHR = (h) => ({ id: `h${h.id}`, kind: h.type || "revenu", label: h.type === "parrainage" ? "Commission parrainage" : h.type === "credit_admin" ? "Cr\xE9dit administrateur" : h.type === "bonus" ? "Bonus roue" : "Revenu investissement", montant: parseFloat(h.montant || 0), sens: "+", statut: "valide", date: h.date });
+        const transactions = [
+          ...depotsRes.rows.map(mapD),
+          ...retraitsRes.rows.map(mapR),
+          ...commandesRes.rows.map(mapC),
+          ...revenusRes.rows.map(mapHR)
+        ].sort((a, b) => new Date(b.date) - new Date(a.date));
+        res.json({ transactions, user });
+      } catch (err) {
+        console.error("[admin/user-transactions]", err.message);
+        res.status(500).json({ error: "Erreur serveur" });
+      }
+    });
+    router.put("/users/:id/role", adminMiddleware, async (req, res) => {
+      try {
+        const userId = parseInt(req.params.id);
+        const { rows } = await query("SELECT role FROM utilisateurs WHERE id = $1", [userId]);
+        if (!rows.length) return res.status(404).json({ error: "Utilisateur introuvable" });
+        const newRole = rows[0].role === "admin" ? "user" : "admin";
+        await query("UPDATE utilisateurs SET role = $1 WHERE id = $2", [newRole, userId]);
+        const msg = newRole === "admin" ? "Utilisateur promu administrateur" : "Droits admin retir\xE9s";
+        res.json({ success: true, message: msg, role: newRole });
+      } catch (err) {
+        console.error("[admin/role]", err.message);
+        res.status(500).json({ error: "Erreur serveur" });
+      }
+    });
     router.delete("/users/:id", adminMiddleware, async (req, res) => {
       try {
         const userId = parseInt(req.params.id);
@@ -1730,7 +1797,9 @@ var require_admin = __commonJS({
       retrait_off: "0",
       lien_whatsapp: "",
       lien_telegram: "",
-      lien_whatsapp_groupe: ""
+      lien_whatsapp_groupe: "",
+      message_bienvenue: "Bienvenue sur AFRILAND INVEST ! Rejoignez notre communaut\xE9 pour ne rien manquer.",
+      popup_actif: "1"
     };
     router.get("/settings", adminMiddleware, async (req, res) => {
       try {
@@ -2702,11 +2771,13 @@ app.get("/api/settings/public", async (req, res) => {
     retrait_off: "0",
     lien_whatsapp: "",
     lien_telegram: "",
-    lien_whatsapp_groupe: ""
+    lien_whatsapp_groupe: "",
+    message_bienvenue: "Bienvenue sur AFRILAND INVEST ! Rejoignez notre communaut\xE9 pour ne rien manquer.",
+    popup_actif: "1"
   };
   try {
     const { rows } = await pool.query(
-      "SELECT cle, valeur FROM settings WHERE cle IN ('min_depot','min_retrait','retrait_max_par_jour','retrait_jours','retrait_heure_debut','retrait_heure_fin','retrait_off','lien_whatsapp','lien_telegram','lien_whatsapp_groupe')"
+      "SELECT cle, valeur FROM settings WHERE cle IN ('min_depot','min_retrait','retrait_max_par_jour','retrait_jours','retrait_heure_debut','retrait_heure_fin','retrait_off','lien_whatsapp','lien_telegram','lien_whatsapp_groupe','message_bienvenue','popup_actif')"
     );
     const map = { ...DEFAULTS };
     rows.forEach((r) => {
