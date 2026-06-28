@@ -13,25 +13,6 @@ const PAYS_METHODES_FALLBACK = {
   'Togo':           ['Flooz (Moov)', 'T-Money'],
 };
 
-const TYPE_CONFIG = {
-  revenu_journalier: { label: 'Revenu journalier', icon: 'fa-coins',           color: '#34C759' },
-  parrainage:        { label: 'Commission parrainage', icon: 'fa-users',        color: '#007AFF' },
-  bonus:             { label: 'Bonus roue',          icon: 'fa-dice',           color: '#AF52DE' },
-  credit_admin:      { label: 'Crédit admin',        icon: 'fa-user-shield',    color: '#FF9500' },
-  cadeau_vip:        { label: 'Cadeau VIP',          icon: 'fa-gift',           color: '#FF2D55' },
-};
-
-function fmt(n) { return new Intl.NumberFormat('fr-FR').format(Math.round(n)); }
-
-function groupByDay(rows) {
-  const map = {};
-  rows.forEach(r => {
-    const day = new Date(r.date_paiement).toISOString().split('T')[0];
-    if (!map[day]) map[day] = [];
-    map[day].push(r);
-  });
-  return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]));
-}
 
 export default function Wallet() {
   const { t } = useLanguage();
@@ -43,7 +24,6 @@ export default function Wallet() {
   });
   const [userPays, setUserPays] = useState('');
   const [wallets, setWallets] = useState([]);
-  const [revenueHistory, setRevenueHistory] = useState([]);
   const [methodes, setMethodes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -53,9 +33,8 @@ export default function Wallet() {
 
   const loadData = async () => {
     try {
-      const [walletRes, histRes, opsRes, userRes] = await Promise.all([
+      const [walletRes, opsRes, userRes] = await Promise.all([
         api.get('/user/wallet'),
-        api.get('/investment/revenue-history'),
         api.get('/deposit/operators').catch(() => ({ data: [] })),
         api.get('/user/profile').catch(() => ({ data: {} })),
       ]);
@@ -80,7 +59,6 @@ export default function Wallet() {
         setForm(f => ({ ...f, pays: inscritPays, methode_paiement: opsForPays[0] || '' }));
       }
 
-      setRevenueHistory(histRes.data.history || []);
     } catch { toast.error(t('loading_error')); }
     finally { setLoading(false); }
   };
@@ -235,72 +213,6 @@ export default function Wallet() {
             </button>
           </form>
         </div>
-      </div>
-
-      {/* ── Historique des revenus ── */}
-      <div style={{ margin: '0 16px 100px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 10, background: '#34C75915', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <i className="fas fa-history" style={{ color: '#34C759', fontSize: 15 }} />
-          </div>
-          <div>
-            <p style={{ fontWeight: 800, fontSize: 15, color: '#1A1A1A' }}>Historique des revenus</p>
-            <p style={{ fontSize: 11, color: '#999' }}>50 dernières entrées</p>
-          </div>
-        </div>
-
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 24 }}><div className="loading-spinner" /></div>
-        ) : revenueHistory.length === 0 ? (
-          <div style={{ background: '#fff', borderRadius: 20, padding: '28px 20px', textAlign: 'center', boxShadow: '0 2px 10px rgba(0,0,0,0.07)' }}>
-            <div style={{ width: 52, height: 52, borderRadius: '50%', margin: '0 auto 12px', background: '#F5F5F5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <i className="fas fa-coins" style={{ fontSize: 22, color: '#ccc' }} />
-            </div>
-            <p style={{ fontWeight: 700, fontSize: 14, color: '#1A1A1A', marginBottom: 4 }}>Aucun revenu pour l'instant</p>
-            <p style={{ fontSize: 12, color: '#999' }}>Vos gains apparaîtront ici après le premier versement.</p>
-          </div>
-        ) : (
-          <div>
-            {groupByDay(revenueHistory).map(([day, items]) => {
-              const totalJour = items.reduce((s, r) => s + parseFloat(r.montant), 0);
-              const dateLabel = new Date(day).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
-
-              return (
-                <div key={day} style={{ marginBottom: 14 }}>
-                  {/* En-tête du jour */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, paddingLeft: 2 }}>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'capitalize' }}>{dateLabel}</p>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: '#34C759' }}>+{fmt(totalJour)} FCFA</span>
-                  </div>
-
-                  {/* Lignes du jour */}
-                  <div style={{ background: '#fff', borderRadius: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
-                    {items.map((r, idx) => {
-                      const cfg = TYPE_CONFIG[r.type] || { label: r.type, icon: 'fa-coins', color: '#FF9500' };
-                      const heure = new Date(r.date_paiement).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-                      return (
-                        <div key={r.id} style={{
-                          display: 'flex', alignItems: 'center', gap: 12,
-                          padding: '13px 16px',
-                          borderBottom: idx < items.length - 1 ? '1px solid #F5F5F5' : 'none',
-                        }}>
-                          <div style={{ width: 38, height: 38, borderRadius: 11, background: cfg.color + '18', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <i className={`fas ${cfg.icon}`} style={{ fontSize: 15, color: cfg.color }} />
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontWeight: 700, fontSize: 13, color: '#1A1A1A' }}>{cfg.label}</p>
-                            <p style={{ fontSize: 11, color: '#999', marginTop: 1 }}>{heure}</p>
-                          </div>
-                          <p style={{ fontWeight: 800, fontSize: 15, color: '#34C759', flexShrink: 0 }}>+{fmt(r.montant)} FCFA</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       <BottomNav />
