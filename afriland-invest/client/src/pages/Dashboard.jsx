@@ -38,6 +38,8 @@ export default function Dashboard() {
   const [notifIdx, setNotifIdx] = useState(0);
   const [annonces, setAnnonces] = useState([]);
   const [lienWhatsapp, setLienWhatsapp] = useState('https://wa.me/237600000000');
+  const [lienTelegram, setLienTelegram] = useState('https://t.me/gifetalpro');
+  const [showPopup, setShowPopup] = useState(false);
   const [notifs, setNotifs] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifs, setShowNotifs] = useState(false);
@@ -51,7 +53,10 @@ export default function Dashboard() {
     loadAnnonces();
     loadNotifications();
     const notifTimer = setInterval(() => setNotifIdx(i => (i + 1) % FAUX_NOTIFS.length), 3000);
-    return () => clearInterval(notifTimer);
+    // Popup Telegram : afficher 1.5s après le chargement, fermer après 7s
+    const showTimer = setTimeout(() => setShowPopup(true), 1500);
+    const hideTimer = setTimeout(() => setShowPopup(false), 8500);
+    return () => { clearInterval(notifTimer); clearTimeout(showTimer); clearTimeout(hideTimer); };
   }, []);
 
   useEffect(() => {
@@ -77,6 +82,7 @@ export default function Dashboard() {
       ]);
       setAnnonces(annoncesRes.data.annonces || []);
       if (settingsRes.data.lien_whatsapp) setLienWhatsapp(settingsRes.data.lien_whatsapp);
+      if (settingsRes.data.lien_telegram) setLienTelegram(settingsRes.data.lien_telegram);
     } catch {}
   };
 
@@ -113,6 +119,58 @@ export default function Dashboard() {
 
   return (
     <div className="container" style={{ background: '#F5F1E8', paddingBottom: 80 }}>
+
+      {/* ─── POPUP TELEGRAM ─── */}
+      {showPopup && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.55)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 24px',
+        }} onClick={() => setShowPopup(false)}>
+          <div style={{
+            background: '#fff', borderRadius: 24, padding: '28px 24px',
+            width: '100%', maxWidth: 340, textAlign: 'center',
+            boxShadow: '0 8px 40px rgba(0,0,0,0.25)',
+            animation: 'fadeInUp 0.3s ease',
+          }} onClick={e => e.stopPropagation()}>
+            {/* Icône */}
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%',
+              background: 'linear-gradient(135deg, #229ED9, #0088cc)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px',
+              boxShadow: '0 4px 16px rgba(34,158,217,0.4)',
+            }}>
+              <i className="fab fa-telegram" style={{ fontSize: 30, color: '#fff' }} />
+            </div>
+            <p style={{ fontWeight: 800, fontSize: 17, color: '#1A1A1A', marginBottom: 8 }}>
+              Rejoignez notre canal Telegram
+            </p>
+            <p style={{ fontSize: 13, color: '#666', lineHeight: 1.5, marginBottom: 20 }}>
+              Recevez les actualités, annonces et conseils d'investissement en temps réel.
+            </p>
+            <a href={lienTelegram} target="_blank" rel="noreferrer" style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              background: 'linear-gradient(135deg, #229ED9, #0088cc)',
+              color: '#fff', fontWeight: 700, fontSize: 15,
+              borderRadius: 50, padding: '13px 24px',
+              textDecoration: 'none',
+              boxShadow: '0 3px 12px rgba(34,158,217,0.4)',
+              marginBottom: 12,
+            }}>
+              <i className="fab fa-telegram" style={{ fontSize: 18 }} />
+              Rejoindre Telegram
+            </a>
+            <button onClick={() => setShowPopup(false)} style={{
+              background: 'none', border: 'none', color: '#999',
+              fontSize: 13, cursor: 'pointer', padding: '4px 8px',
+            }}>
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ─── EN-TÊTE ─── */}
       <div style={{
