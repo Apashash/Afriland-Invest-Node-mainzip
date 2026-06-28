@@ -19,8 +19,16 @@ const safeQ = async (sql, params = [], fallback = { rows: [] }) => {
 
 router.get('/stats', adminMiddleware, async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
-    const [usersRes, depotsValidesRes, retraitsValidesRes, commandesActifRes, depotsAttenteRes, retraitsAttenteRes, commandesUsersRes] = await Promise.all([
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const yesterday = new Date(now - 86400000).toISOString().split('T')[0];
+
+    const [
+      usersRes, depotsValidesRes, retraitsValidesRes, commandesActifRes,
+      depotsAttenteRes, retraitsAttenteRes, commandesUsersRes,
+      depotsTodayRes, retraitsTodayRes,
+      depotsHierRes, retraitsHierRes,
+    ] = await Promise.all([
       safeQ('SELECT COUNT(*) FROM utilisateurs', [], { rows: [{ count: '0' }] }),
       safeQ("SELECT montant FROM depots WHERE statut = 'valide'"),
       safeQ("SELECT montant FROM retraits WHERE statut = 'valide'"),
@@ -28,6 +36,10 @@ router.get('/stats', adminMiddleware, async (req, res) => {
       safeQ("SELECT COUNT(*) FROM depots WHERE statut = 'en_attente'", [], { rows: [{ count: '0' }] }),
       safeQ("SELECT COUNT(*) FROM retraits WHERE statut = 'en_attente'", [], { rows: [{ count: '0' }] }),
       safeQ("SELECT DISTINCT user_id FROM commandes WHERE statut = 'actif' AND date_fin >= $1", [today]),
+      safeQ("SELECT COALESCE(SUM(montant),0) AS total, COUNT(*) AS nb FROM depots WHERE DATE(date_depot) = $1", [today], { rows: [{ total: '0', nb: '0' }] }),
+      safeQ("SELECT COALESCE(SUM(montant),0) AS total, COUNT(*) AS nb FROM retraits WHERE DATE(date_demande) = $1", [today], { rows: [{ total: '0', nb: '0' }] }),
+      safeQ("SELECT COALESCE(SUM(montant),0) AS total, COUNT(*) AS nb FROM depots WHERE DATE(date_depot) = $1", [yesterday], { rows: [{ total: '0', nb: '0' }] }),
+      safeQ("SELECT COALESCE(SUM(montant),0) AS total, COUNT(*) AS nb FROM retraits WHERE DATE(date_demande) = $1", [yesterday], { rows: [{ total: '0', nb: '0' }] }),
     ]);
 
     const totalDepots = depotsValidesRes.rows.reduce((s, d) => s + parseFloat(d.montant || 0), 0);
@@ -39,6 +51,14 @@ router.get('/stats', adminMiddleware, async (req, res) => {
       retraits: { total: totalRetraits, en_attente: parseInt(retraitsAttenteRes.rows[0]?.count || 0) },
       commandes: { count: parseInt(commandesActifRes.rows[0]?.count || 0) },
       users_avec_investissement: commandesUsersRes.rows.length,
+      today: {
+        depots: { total: parseFloat(depotsTodayRes.rows[0]?.total || 0), nb: parseInt(depotsTodayRes.rows[0]?.nb || 0) },
+        retraits: { total: parseFloat(retraitsTodayRes.rows[0]?.total || 0), nb: parseInt(retraitsTodayRes.rows[0]?.nb || 0) },
+      },
+      hier: {
+        depots: { total: parseFloat(depotsHierRes.rows[0]?.total || 0), nb: parseInt(depotsHierRes.rows[0]?.nb || 0) },
+        retraits: { total: parseFloat(retraitsHierRes.rows[0]?.total || 0), nb: parseInt(retraitsHierRes.rows[0]?.nb || 0) },
+      },
     });
   } catch (err) {
     console.error('[admin/stats]', err.message);

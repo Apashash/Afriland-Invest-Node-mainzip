@@ -75,6 +75,117 @@ function SectionHeader({ icon, title, badge, action }) {
   );
 }
 
+function DailyComparisonChart({ stats, fmt }) {
+  if (!stats?.today) return null;
+
+  const td = stats.today.depots.total;
+  const tr = stats.today.retraits.total;
+  const hd = stats.hier.depots.total;
+  const hr = stats.hier.retraits.total;
+  const maxVal = Math.max(td, tr, hd, hr, 1);
+
+  const W = 320, H = 160, PL = 0, PB = 28, PT = 10, PR = 0;
+  const chartH = H - PB - PT;
+  const groups = [
+    { label: 'Dépôts', today: td, hier: hd, colorToday: '#34C759', colorHier: '#34C75960' },
+    { label: 'Retraits', today: tr, hier: hr, colorToday: '#FF3B30', colorHier: '#FF3B3060' },
+  ];
+  const groupW = (W - PL - PR) / groups.length;
+  const barW = 28;
+  const gap = 8;
+
+  const toY = v => PT + chartH - (v / maxVal) * chartH;
+  const barH = v => Math.max((v / maxVal) * chartH, v > 0 ? 3 : 0);
+
+  return (
+    <div style={{ background: '#fff', borderRadius: 20, padding: '20px 16px 16px', boxShadow: 'var(--shadow-card)', marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: '#007AFF15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <i className="fas fa-chart-bar" style={{ color: '#007AFF', fontSize: 15 }} />
+          </div>
+          <div>
+            <p style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-dark)' }}>Aujourd'hui vs Hier</p>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Comparaison des transactions</p>
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'right' }}>
+          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#1A1A1A', marginRight: 4 }} />Auj.&nbsp;&nbsp;
+          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#CCC', marginRight: 4 }} />Hier
+        </div>
+      </div>
+
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
+        {/* Grid lines */}
+        {[0, 0.5, 1].map((t, i) => {
+          const y = PT + chartH * (1 - t);
+          return (
+            <g key={i}>
+              <line x1={0} x2={W} y1={y} y2={y} stroke="#F0F0F0" strokeWidth={1} />
+              {t > 0 && (
+                <text x={2} y={y - 3} fontSize={8} fill="#BBB">
+                  {fmt(Math.round(maxVal * t))}
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+        {groups.map((g, gi) => {
+          const cx = PL + gi * groupW + groupW / 2;
+          const x0 = cx - barW - gap / 2;
+          const x1 = cx + gap / 2;
+          return (
+            <g key={g.label}>
+              {/* Barre Aujourd'hui */}
+              <rect x={x0} y={toY(g.today)} width={barW} height={barH(g.today)} fill={g.colorToday} rx={4} />
+              {/* Barre Hier */}
+              <rect x={x1} y={toY(g.hier)} width={barW} height={barH(g.hier)} fill={g.colorHier} rx={4} />
+              {/* Valeurs */}
+              {g.today > 0 && (
+                <text x={x0 + barW / 2} y={toY(g.today) - 4} textAnchor="middle" fontSize={8} fill={g.colorToday} fontWeight="700">
+                  {g.today >= 1000 ? `${Math.round(g.today/1000)}k` : Math.round(g.today)}
+                </text>
+              )}
+              {g.hier > 0 && (
+                <text x={x1 + barW / 2} y={toY(g.hier) - 4} textAnchor="middle" fontSize={8} fill="#999" fontWeight="700">
+                  {g.hier >= 1000 ? `${Math.round(g.hier/1000)}k` : Math.round(g.hier)}
+                </text>
+              )}
+              <text x={cx} y={H - 6} textAnchor="middle" fontSize={11} fill="var(--text-dark)" fontWeight="700">{g.label}</text>
+            </g>
+          );
+        })}
+        <line x1={0} x2={W} y1={PT + chartH} y2={PT + chartH} stroke="#E8E8E8" strokeWidth={1} />
+      </svg>
+
+      {/* Résumé chiffré */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14 }}>
+        {[
+          { label: "Dépôts auj.", value: td, nb: stats.today.depots.nb, color: '#34C759' },
+          { label: "Retraits auj.", value: tr, nb: stats.today.retraits.nb, color: '#FF3B30' },
+          { label: "Dépôts hier", value: hd, nb: stats.hier.depots.nb, color: '#34C75980' },
+          { label: "Retraits hier", value: hr, nb: stats.hier.retraits.nb, color: '#FF3B3080' },
+        ].map(item => {
+          const diff = item.label.includes('Dépôts') ? (td - hd) : (tr - hr);
+          const isToday = item.label.includes('auj.');
+          return (
+            <div key={item.label} style={{ background: '#F9F9F9', borderRadius: 12, padding: '10px 12px', borderLeft: `3px solid ${item.color}` }}>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>{item.label} <span style={{ background: '#E8E8E8', borderRadius: 20, padding: '1px 6px', fontSize: 10 }}>{item.nb}</span></p>
+              <p style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-dark)' }}>{fmt(item.value)} <span style={{ fontSize: 10, fontWeight: 500 }}>FCFA</span></p>
+              {isToday && (
+                <p style={{ fontSize: 10, marginTop: 2, color: diff >= 0 ? '#34C759' : '#FF3B30', fontWeight: 600 }}>
+                  {diff >= 0 ? '▲' : '▼'} {fmt(Math.abs(diff))} vs hier
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function TransactionChart({ depots, retraits, fmt }) {
   const MONTHS = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
   const now = new Date();
@@ -1031,7 +1142,10 @@ export default function Admin() {
               ))}
             </div>
 
-            {/* Graphique dépôts / retraits */}
+            {/* Graphique Aujourd'hui vs Hier */}
+            <DailyComparisonChart stats={stats} fmt={fmt} />
+
+            {/* Graphique dépôts / retraits 6 mois */}
             <TransactionChart depots={depots} retraits={retraits} fmt={fmt} />
 
             {/* ── Versement journalier ── */}
