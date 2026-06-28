@@ -12,7 +12,7 @@ A French-language investment platform where users can register, make deposits, p
 
 - **Backend**: Node.js + Express 4, PostgreSQL (`pg` driver), JWT auth, bcryptjs
 - **Frontend**: React 18 + Vite 5, served as static files from `afriland-invest/dist/public`
-- **Database**: Replit built-in PostgreSQL (via `PGHOST`/`PGUSER`/`PGDATABASE` env vars)
+- **Database**: Supabase PostgreSQL (via `SUPABASE_DB_URL` secret — prioritaire sur le PG Replit)
 - **Uploads**: Local disk storage via multer (`afriland-invest/uploads/`)
 
 ## Where things live
