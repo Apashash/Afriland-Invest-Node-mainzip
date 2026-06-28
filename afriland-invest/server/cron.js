@@ -3,7 +3,35 @@ const { pool } = require('./db');
 let dernierPaiement = null;
 let enCours = false;
 
-async function payerRevenusJournaliers() {
+// ── Persistance en base ───────────────────────────────────────────
+
+async function lireDernierVersementDB() {
+  try {
+    const { rows } = await pool.query(
+      `SELECT valeur FROM settings WHERE cle = 'last_revenu_date'`
+    );
+    return rows[0]?.valeur || null;
+  } catch {
+    return null;
+  }
+}
+
+async function sauvegarderVersementDB(dateISO) {
+  try {
+    await pool.query(
+      `INSERT INTO settings (cle, valeur, description)
+       VALUES ('last_revenu_date', $1, 'Dernière date de versement des revenus journaliers')
+       ON CONFLICT (cle) DO UPDATE SET valeur = $1, date_maj = NOW()`,
+      [dateISO]
+    );
+  } catch (err) {
+    console.error('⚠️  Impossible de sauvegarder last_revenu_date:', err.message);
+  }
+}
+
+// ── Versement principal ───────────────────────────────────────────
+
+async function payerRevenusJournaliers({ force = false } = {}) {
   if (enCours) {
     console.log('⏳ Paiement déjà en cours, ignoré.');
     return { skipped: true };
@@ -20,6 +48,17 @@ async function payerRevenusJournaliers() {
   try {
     const today = new Date().toISOString().split('T')[0];
 
+    // Vérifier si le versement du jour a déjà été fait (sauf si force=true)
+    if (!force) {
+      const derniere = await lireDernierVersementDB();
+      if (derniere && derniere.startsWith(today)) {
+        console.log(`✅ Versement du ${today} déjà effectué — ignoré.`);
+        dernierPaiement = derniere;
+        enCours = false;
+        return { skipped: true, reason: 'already_paid_today', date: derniere };
+      }
+    }
+
     // Récupérer toutes les commandes actives
     const { rows: commandes } = await client.query(
       `SELECT id, user_id, revenu_journalier, date_fin, montant
@@ -35,7 +74,6 @@ async function payerRevenusJournaliers() {
         const maintenant = new Date(today);
 
         if (maintenant > dateFin) {
-          // Commande expirée → la marquer terminée
           await client.query(
             `UPDATE commandes SET statut = 'termine' WHERE id = $1`,
             [cmd.id]
@@ -49,20 +87,17 @@ async function payerRevenusJournaliers() {
 
         await client.query('BEGIN');
 
-        // Créditer le solde
         await client.query(
           `INSERT INTO soldes (user_id, solde, date_maj) VALUES ($1, $2, NOW())
            ON CONFLICT (user_id) DO UPDATE SET solde = soldes.solde + $2, date_maj = NOW()`,
           [cmd.user_id, revenu]
         );
 
-        // Mettre à jour revenus_totaux dans utilisateurs
         await client.query(
           `UPDATE utilisateurs SET revenus_totaux = COALESCE(revenus_totaux, 0) + $1 WHERE id = $2`,
           [revenu, cmd.user_id]
         );
 
-        // Enregistrer dans l'historique
         await client.query(
           `INSERT INTO historique_revenus (user_id, commande_id, montant, type, date_paiement)
            VALUES ($1, $2, $3, 'revenu_journalier', NOW())`,
@@ -81,6 +116,8 @@ async function payerRevenusJournaliers() {
     }
 
     dernierPaiement = new Date().toISOString();
+    await sauvegarderVersementDB(dernierPaiement);
+
     console.log(`✅ Versement terminé — ${creditees} crédités, ${terminees} terminées, ${totalVerse.toFixed(0)} FCFA versés`);
     if (errors.length) console.warn(`⚠️  ${errors.length} erreur(s):`, errors);
 
@@ -99,21 +136,37 @@ function isEnCours() {
   return enCours;
 }
 
-// Calcule le délai jusqu'à la prochaine heure H:00
+// ── Scheduler journalier ─────────────────────────────────────────
+
 function msJusquaHeure(heure = 2) {
   const maintenant = new Date();
   const prochaine = new Date();
-  prochaine.setHours(heure, 0, 0, 0);
+  prochaine.setUTCHours(heure, 0, 0, 0);
   if (prochaine <= maintenant) {
-    prochaine.setDate(prochaine.getDate() + 1);
+    prochaine.setUTCDate(prochaine.getUTCDate() + 1);
   }
   return prochaine - maintenant;
 }
 
-// Démarre le cron automatique chaque jour à 02:00 UTC
-function demarrerCronJournalier() {
+async function demarrerCronJournalier() {
   const heureCible = 2; // 02h00 UTC
 
+  // ── Au démarrage : rattrapage si le versement du jour n'a pas été fait ──
+  const derniere = await lireDernierVersementDB();
+  dernierPaiement = derniere;
+
+  const today = new Date().toISOString().split('T')[0];
+  const heureUTC = new Date().getUTCHours();
+  const dejaPaye = derniere && derniere.startsWith(today);
+
+  if (!dejaPaye && heureUTC >= heureCible) {
+    console.log(`🔄 Redémarrage détecté — versement du ${today} manqué, exécution immédiate...`);
+    await payerRevenusJournaliers().catch(err =>
+      console.error('❌ Erreur rattrapage au démarrage:', err.message)
+    );
+  }
+
+  // ── Planification quotidienne ────────────────────────────────────
   function planifierProchain() {
     const delai = msJusquaHeure(heureCible);
     const heures = Math.floor(delai / 3600000);
@@ -124,7 +177,7 @@ function demarrerCronJournalier() {
       await payerRevenusJournaliers().catch(err =>
         console.error('❌ Erreur cron journalier:', err.message)
       );
-      planifierProchain(); // replanifier pour le lendemain
+      planifierProchain();
     }, delai);
   }
 
