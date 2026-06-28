@@ -610,4 +610,30 @@ router.delete('/salaires/:niveau', adminMiddleware, async (req, res) => {
   }
 });
 
+// ── Versement manuel des revenus journaliers ─────────────────────
+router.post('/payer-revenus', adminMiddleware, async (req, res) => {
+  const { payerRevenusJournaliers, getDernierPaiement, isEnCours } = require('../cron');
+  if (isEnCours()) {
+    return res.status(409).json({ error: 'Un versement est déjà en cours, veuillez patienter.' });
+  }
+  try {
+    const result = await payerRevenusJournaliers();
+    res.json({
+      success: true,
+      message: `✅ ${result.creditees} investisseur(s) crédité(s), ${result.terminees} plan(s) terminé(s). Total versé : ${result.totalVerse.toFixed(0)} FCFA.`,
+      details: result,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Erreur lors du versement' });
+  }
+});
+
+router.get('/payer-revenus/statut', adminMiddleware, async (req, res) => {
+  const { getDernierPaiement, isEnCours } = require('../cron');
+  res.json({
+    en_cours: isEnCours(),
+    dernier_paiement: getDernierPaiement(),
+  });
+});
+
 module.exports = router;

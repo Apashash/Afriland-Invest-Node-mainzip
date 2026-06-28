@@ -21,6 +21,7 @@ const notificationsRoutes = require('./routes/notifications');
 const webhookRoutes = require('./routes/webhook');
 
 const { runMigrations } = require('./migrate');
+const { demarrerCronJournalier } = require('./cron');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -189,4 +190,5 @@ app.listen(PORT, '0.0.0.0', async () => {
   } catch (err) {
     console.error('❌ Migration error:', err.message);
   }
+  demarrerCronJournalier();
 });
