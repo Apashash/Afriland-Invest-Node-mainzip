@@ -617,7 +617,21 @@ router.post('/payer-revenus', adminMiddleware, async (req, res) => {
     return res.status(409).json({ error: 'Un versement est déjà en cours, veuillez patienter.' });
   }
   try {
-    const result = await payerRevenusJournaliers({ force: true });
+    const result = await payerRevenusJournaliers();
+    if (result.skipped) {
+      const date = result.date ? new Date(result.date) : null;
+      const dateStr = date
+        ? date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        : '';
+      const heureStr = date
+        ? date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+        : '';
+      return res.json({
+        success: false,
+        skipped: true,
+        message: `Le versement du jour a déjà été effectué le ${dateStr} à ${heureStr}.`,
+      });
+    }
     res.json({
       success: true,
       message: `✅ ${result.creditees} investisseur(s) crédité(s), ${result.terminees} plan(s) terminé(s). Total versé : ${(result.totalVerse || 0).toFixed(0)} FCFA.`,

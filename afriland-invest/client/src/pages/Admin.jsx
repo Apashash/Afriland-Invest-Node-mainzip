@@ -282,9 +282,13 @@ export default function Admin() {
     setPayingRevenu(true);
     try {
       const res = await api.post('/admin/payer-revenus');
-      toast.success(res.data.message);
-      setDernierVersement(new Date().toISOString());
-      loadAll();
+      if (res.data.skipped) {
+        toast(res.data.message, { icon: 'ℹ️', duration: 5000 });
+      } else {
+        toast.success(res.data.message, { duration: 5000 });
+        setDernierVersement(new Date().toISOString());
+        loadAll();
+      }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Erreur lors du versement');
     } finally {
