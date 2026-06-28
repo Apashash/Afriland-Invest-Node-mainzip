@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useLanguage, LangToggle } from '../contexts/LanguageContext.jsx';
@@ -13,12 +13,15 @@ const PAYS = [
 ];
 
 export default function Login() {
+  const [searchParams] = useSearchParams();
+  const codeFromUrl = (searchParams.get('p') || '').toUpperCase();
+
   const [lienWhatsapp, setLienWhatsapp] = useState('https://wa.me/237600000000');
-  const [tab, setTab] = useState('login');
+  const [tab, setTab] = useState(codeFromUrl ? 'register' : 'login');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loginForm, setLoginForm] = useState({ indicatif: '+237', telephone: '', mot_de_passe: '' });
-  const [regForm, setRegForm] = useState({ nom: '', indicatif: '+237', telephone: '', mot_de_passe: '', pays: 'Cameroun', code_parrain: '' });
+  const [regForm, setRegForm] = useState({ nom: '', indicatif: '+237', telephone: '', mot_de_passe: '', pays: 'Cameroun', code_parrain: codeFromUrl });
 
   const handleIndicatifChange = (val, isReg) => {
     const found = PAYS.find(p => p.code === val);
@@ -297,17 +300,30 @@ export default function Login() {
 
               <div style={{ marginBottom: 20 }}>
                 <div style={{
-                  background: '#F7F7F7', borderRadius: 12, border: '1.5px solid #E8E8E8',
+                  background: codeFromUrl ? '#FFF8F0' : '#F7F7F7',
+                  borderRadius: 12,
+                  border: codeFromUrl ? '1.5px solid #FF9500' : '1.5px solid #E8E8E8',
+                  display: 'flex', alignItems: 'center',
                 }}>
+                  {codeFromUrl && (
+                    <span style={{ paddingLeft: 14, fontSize: 16 }}>🔗</span>
+                  )}
                   <input
                     type="text" placeholder={t('referral_placeholder')}
                     value={regForm.code_parrain}
-                    onChange={e => setRegForm({ ...regForm, code_parrain: e.target.value })}
+                    onChange={e => !codeFromUrl && setRegForm({ ...regForm, code_parrain: e.target.value })}
+                    readOnly={!!codeFromUrl}
                     style={{
-                      width: '100%', background: 'transparent', border: 'none',
-                      padding: '13px 14px', fontSize: 15, color: '#1A1A1A',
+                      flex: 1, background: 'transparent', border: 'none',
+                      padding: '13px 14px', fontSize: 15,
+                      color: codeFromUrl ? '#FF9500' : '#1A1A1A',
+                      fontWeight: codeFromUrl ? 700 : 400,
+                      cursor: codeFromUrl ? 'default' : 'text',
                     }}
                   />
+                  {codeFromUrl && (
+                    <span style={{ paddingRight: 14, fontSize: 12, color: '#FF9500', fontWeight: 600, whiteSpace: 'nowrap' }}>Parrain actif ✓</span>
+                  )}
                 </div>
               </div>
 
