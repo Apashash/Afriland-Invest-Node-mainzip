@@ -152,7 +152,10 @@ app.get('/api/deploy', (req, res) => {
   }
   try {
     const dir = path.join(__dirname, '..');
-    const out = execSync(`cd ${dir} && git pull origin main 2>&1`, { timeout: 30000 }).toString();
+    const out = execSync(
+      `cd ${dir} && git fetch origin 2>&1 && git reset --hard origin/main 2>&1`,
+      { timeout: 30000 }
+    ).toString();
     res.send(`<pre style="font-family:monospace;padding:20px">✅ Déploiement réussi !\n\n${out}\n\nRedémarrage dans 3 secondes...</pre>`);
     setTimeout(() => process.exit(0), 3000);
   } catch (e) {
