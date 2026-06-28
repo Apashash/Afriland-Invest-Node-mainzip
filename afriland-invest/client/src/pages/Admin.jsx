@@ -377,6 +377,17 @@ export default function Admin() {
     } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
   };
 
+  const handleToggleAdmin = async (u) => {
+    const isAdmin = u.role === 'admin';
+    const action = isAdmin ? `retirer les droits admin de ${u.nom}` : `nommer ${u.nom} administrateur`;
+    if (!confirm(`Voulez-vous ${action} ?`)) return;
+    setActionMenu(null);
+    try {
+      const res = await api.put(`/admin/users/${u.id}/role`);
+      toast.success(res.data.message + ' ✅'); loadAll();
+    } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
+  };
+
   const saveSettings = async () => {
     try { await api.put('/admin/settings', { cle: 'min_depot', valeur: settings.min_depot }); toast.success('Sauvegardé ✅'); }
     catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
@@ -719,6 +730,7 @@ export default function Admin() {
               {[
                 { icon: 'fa-coins', color: '#FF9500', label: 'Modifier le solde', action: () => openBalanceModal(actionMenu) },
                 { icon: 'fa-user-edit', color: '#007AFF', label: 'Informations & Sécurité', action: () => openInfoModal(actionMenu) },
+                { icon: actionMenu.role === 'admin' ? 'fa-user-minus' : 'fa-user-shield', color: actionMenu.role === 'admin' ? '#8E8E93' : '#5856D6', label: actionMenu.role === 'admin' ? 'Retirer les droits admin' : 'Nommer administrateur', action: () => handleToggleAdmin(actionMenu) },
                 { icon: actionMenu.banni ? 'fa-user-check' : 'fa-ban', color: actionMenu.banni ? '#34C759' : '#FF3B30', label: actionMenu.banni ? 'Débannir l\'utilisateur' : 'Bannir l\'utilisateur', action: () => handleBan(actionMenu) },
                 { icon: actionMenu.retrait_bloque ? 'fa-lock-open' : 'fa-lock', color: actionMenu.retrait_bloque ? '#34C759' : '#5856D6', label: actionMenu.retrait_bloque ? 'Débloquer le retrait' : 'Bloquer le retrait', action: () => handleBlockWithdrawal(actionMenu) },
                 { icon: 'fa-trash-alt', color: '#FF3B30', label: 'Supprimer l\'utilisateur', action: () => handleDeleteUser(actionMenu) },
@@ -729,7 +741,7 @@ export default function Admin() {
                   <div style={{ width: 38, height: 38, borderRadius: 10, background: item.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <i className={`fas ${item.icon}`} style={{ color: item.color, fontSize: 15 }} />
                   </div>
-                  <span style={{ fontWeight: 600, fontSize: 14, color: i === 4 ? '#FF3B30' : 'var(--text-dark)' }}>{item.label}</span>
+                  <span style={{ fontWeight: 600, fontSize: 14, color: i === 5 ? '#FF3B30' : 'var(--text-dark)' }}>{item.label}</span>
                   <i className="fas fa-chevron-right" style={{ marginLeft: 'auto', color: '#CCC', fontSize: 11 }} />
                 </button>
               ))}

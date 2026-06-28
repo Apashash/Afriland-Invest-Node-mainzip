@@ -238,6 +238,21 @@ router.put('/users/:id/block-withdrawal', adminMiddleware, async (req, res) => {
   }
 });
 
+router.put('/users/:id/role', adminMiddleware, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const { rows } = await query('SELECT role FROM utilisateurs WHERE id = $1', [userId]);
+    if (!rows.length) return res.status(404).json({ error: 'Utilisateur introuvable' });
+    const newRole = rows[0].role === 'admin' ? 'user' : 'admin';
+    await query('UPDATE utilisateurs SET role = $1 WHERE id = $2', [newRole, userId]);
+    const msg = newRole === 'admin' ? 'Utilisateur promu administrateur' : 'Droits admin retirés';
+    res.json({ success: true, message: msg, role: newRole });
+  } catch (err) {
+    console.error('[admin/role]', err.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 router.delete('/users/:id', adminMiddleware, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
