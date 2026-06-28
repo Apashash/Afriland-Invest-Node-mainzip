@@ -121,7 +121,10 @@ var require_auth = __commonJS({
         if (!PAYS_ELIGIBLES[indicatif]) {
           return res.status(400).json({ error: "Code pays non valide" });
         }
-        const full_tel = indicatif + telephone.replace(/\D/g, "");
+        const codeDigits = indicatif.replace(/\D/g, "");
+        let localTel = telephone.replace(/\D/g, "");
+        if (localTel.startsWith(codeDigits)) localTel = localTel.slice(codeDigits.length);
+        const full_tel = indicatif + localTel;
         const { rows } = await query("SELECT * FROM utilisateurs WHERE telephone = $1", [full_tel]);
         const user = rows[0];
         if (!user) {
@@ -162,7 +165,10 @@ var require_auth = __commonJS({
         if (!PAYS_ELIGIBLES[indicatif]) {
           return res.status(400).json({ error: "Pays non \xE9ligible" });
         }
-        const full_tel = indicatif + telephone.replace(/\D/g, "");
+        const codeDigits = indicatif.replace(/\D/g, "");
+        let localTel = telephone.replace(/\D/g, "");
+        if (localTel.startsWith(codeDigits)) localTel = localTel.slice(codeDigits.length);
+        const full_tel = indicatif + localTel;
         const existing = await query("SELECT id FROM utilisateurs WHERE telephone = $1", [full_tel]);
         if (existing.rows.length > 0) {
           return res.status(409).json({ error: "Ce num\xE9ro est d\xE9j\xE0 enregistr\xE9" });
