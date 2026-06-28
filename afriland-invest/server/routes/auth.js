@@ -34,12 +34,12 @@ router.post('/login', async (req, res) => {
     const user = rows[0];
 
     if (!user) {
-      return res.status(401).json({ error: 'Aucun compte trouvé avec ce numéro' });
+      return res.status(401).json({ error: 'Le numéro de téléphone ou le mot de passe est incorrect' });
     }
 
     const validPassword = await bcrypt.compare(mot_de_passe, user.mot_de_passe);
     if (!validPassword) {
-      return res.status(401).json({ error: 'Mot de passe incorrect' });
+      return res.status(401).json({ error: 'Le numéro de téléphone ou le mot de passe est incorrect' });
     }
 
     const token = jwt.sign(

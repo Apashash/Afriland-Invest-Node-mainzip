@@ -17,6 +17,7 @@ export default function Login() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ indicatif: '+237', telephone: '', mot_de_passe: '' });
+  const [erreur, setErreur] = useState('');
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -30,13 +31,15 @@ export default function Login() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setErreur('');
     if (!form.telephone || !form.mot_de_passe) return toast.error(t('fill_all'));
     setLoading(true);
     try {
       await login(form.indicatif, form.telephone, form.mot_de_passe);
       navigate('/');
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Identifiants incorrects');
+      const msg = err.response?.data?.error || 'Le numéro de téléphone ou le mot de passe est incorrect';
+      setErreur(msg);
     } finally { setLoading(false); }
   };
 
@@ -129,6 +132,17 @@ export default function Login() {
                 </button>
               </div>
             </div>
+
+            {erreur && (
+              <div style={{
+                background: '#FFF0F0', border: '1.5px solid #FF4444', borderRadius: 10,
+                padding: '10px 14px', marginBottom: 14,
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <i className="fas fa-exclamation-circle" style={{ color: '#FF4444', fontSize: 16, flexShrink: 0 }} />
+                <span style={{ color: '#CC0000', fontSize: 13, fontWeight: 600 }}>{erreur}</span>
+              </div>
+            )}
 
             <button type="submit" className="btn btn-primary" disabled={loading}>
               {loading
