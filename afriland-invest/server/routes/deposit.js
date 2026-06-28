@@ -15,7 +15,8 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 const ASHTECH_API_KEY = process.env.ASHTECH_API_KEY;
 const ASHTECH_BASE = 'https://ashtechpay.top';
 
-const PAYS_ASHTECH = {
+// Fallback statique si l'API Ashtech est indisponible
+const PAYS_ASHTECH_FALLBACK = {
   'Cameroun':       { country_code: 'CM', currency: 'XAF', operators: ['MTN Mobile Money', 'Orange Money'] },
   'Togo':           { country_code: 'TG', currency: 'XOF', operators: ['Flooz (Moov)', 'T-Money'] },
   'Burkina Faso':   { country_code: 'BF', currency: 'XOF', operators: ['Moov Money', 'Orange Money'] },
@@ -23,13 +24,20 @@ const PAYS_ASHTECH = {
   'Bénin':          { country_code: 'BJ', currency: 'XOF', operators: ['MTN Mobile Money', 'Moov Money'] },
 };
 
-function getNotifyUrl(req) {
-  const domain = process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(',')[0];
-  if (domain) return `https://${domain}/api/webhook/ashtech`;
-  const host = req.get('host');
-  const proto = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
-  return `${proto}://${host}/api/webhook/ashtech`;
-}
+// Pays affichés dans l'app (filtre sur les 5 pays supportés)
+const PAYS_AFFICHES = ['Cameroun', 'Togo', 'Bénin', 'Burkina Faso', "Côte d'Ivoire"];
+
+// Indicatifs pour normaliser le numéro de téléphone avant envoi à Ashtech
+const INDICATIFS = {
+  'CM': '237', 'TG': '228', 'BJ': '229', 'BF': '226', 'CI': '225',
+  'SN': '221', 'ML': '223', 'GN': '224', 'CI2': '225', 'CG': '242',
+  'CF': '236', 'GA': '241', 'GQ': '240', 'GW': '245', 'NE': '227',
+  'CD': '243', 'TD': '235',
+};
+
+// Cache des pays Ashtech (rafraîchi toutes les heures)
+let _countriesCache = null;
+let _cacheTime = 0;
 
 async function callAshtech(endpoint, method, body) {
   const res = await fetch(`${ASHTECH_BASE}${endpoint}`, {
@@ -44,8 +52,60 @@ async function callAshtech(endpoint, method, body) {
   return { status: res.status, data };
 }
 
-router.get('/operators', authMiddleware, (req, res) => {
-  res.json({ pays_operateurs: PAYS_ASHTECH });
+async function getPaysAshtech() {
+  const now = Date.now();
+  if (_countriesCache && now - _cacheTime < 60 * 60 * 1000) return _countriesCache;
+  try {
+    const { status, data } = await callAshtech('/v1/countries', 'GET');
+    if (status === 200 && Array.isArray(data)) {
+      const map = {};
+      data.forEach(c => {
+        map[c.name] = { country_code: c.code, currency: c.currency, operators: c.operators };
+      });
+      _countriesCache = map;
+      _cacheTime = now;
+      console.log(`✅ Ashtech countries rechargés: ${Object.keys(map).join(', ')}`);
+      return map;
+    }
+  } catch (e) {
+    console.warn('⚠️  Ashtech /v1/countries indisponible, fallback utilisé:', e.message);
+  }
+  return PAYS_ASHTECH_FALLBACK;
+}
+
+// Supprime le code pays du numéro avant envoi à Ashtech (ex: +22899XXXXXX → 99XXXXXX)
+function normaliserTelephone(phone, country_code) {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  const indicatif = INDICATIFS[country_code] || '';
+  if (indicatif && digits.startsWith(indicatif)) {
+    return digits.slice(indicatif.length);
+  }
+  return digits;
+}
+
+function getNotifyUrl(req) {
+  const domain = process.env.APP_DOMAIN ||
+    process.env.REPLIT_DEV_DOMAIN ||
+    process.env.REPLIT_DOMAINS?.split(',')[0];
+  if (domain) return `https://${domain}/api/webhook/ashtech`;
+  const host = req.get('host');
+  const proto = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+  return `${proto}://${host}/api/webhook/ashtech`;
+}
+
+router.get('/operators', authMiddleware, async (req, res) => {
+  try {
+    const tous = await getPaysAshtech();
+    // Filtrer uniquement les pays affichés dans l'app
+    const filtre = {};
+    PAYS_AFFICHES.forEach(nom => {
+      if (tous[nom]) filtre[nom] = tous[nom];
+    });
+    res.json({ pays_operateurs: Object.keys(filtre).length ? filtre : PAYS_ASHTECH_FALLBACK });
+  } catch {
+    res.json({ pays_operateurs: PAYS_ASHTECH_FALLBACK });
+  }
 });
 
 router.get('/list', authMiddleware, async (req, res) => {
@@ -73,8 +133,14 @@ router.post('/initiate', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Champs obligatoires manquants' });
     }
 
-    const paysInfo = PAYS_ASHTECH[pays];
-    if (!paysInfo) return res.status(400).json({ error: 'Pays non supporté' });
+    const paysMap = await getPaysAshtech();
+    const paysInfo = paysMap[pays];
+    if (!paysInfo) return res.status(400).json({ error: `Pays non supporté: ${pays}` });
+
+    // Vérifier que l'opérateur est valide pour ce pays
+    if (!paysInfo.operators.includes(operateur)) {
+      return res.status(400).json({ error: `Opérateur "${operateur}" non disponible pour ${pays}` });
+    }
 
     const montantNum = parseFloat(montant);
     const minDepotRes = await query("SELECT valeur FROM settings WHERE cle = 'min_depot'").catch(() => ({ rows: [] }));
@@ -82,6 +148,9 @@ router.post('/initiate', authMiddleware, async (req, res) => {
     if (montantNum < minDepot) {
       return res.status(400).json({ error: `Le montant minimum est de ${new Intl.NumberFormat('fr-FR').format(minDepot)} FCFA` });
     }
+
+    // Normaliser le numéro : retirer l'indicatif pays si présent (Ashtech attend le numéro local)
+    const phoneNormalise = normaliserTelephone(numero_payeur || '', paysInfo.country_code);
 
     const rand = Array.from({ length: 10 }, () => Math.floor(Math.random() * 10)).join('');
     const reference = `AF${rand}`;
@@ -97,12 +166,14 @@ router.post('/initiate', authMiddleware, async (req, res) => {
     const payload = {
       amount: montantNum,
       currency: paysInfo.currency,
-      phone: numero_payeur || '',
+      phone: phoneNormalise,
       operator: operateur,
       country_code: paysInfo.country_code,
       reference,
       notify_url: notifyUrl,
     };
+
+    console.log(`📤 Ashtech collect → pays=${pays} op=${operateur} phone=${phoneNormalise} amount=${montantNum}`);
 
     const { status, data } = await callAshtech('/v1/collect', 'POST', payload);
 
@@ -130,17 +201,18 @@ router.post('/initiate', authMiddleware, async (req, res) => {
     }
 
     await query(`UPDATE depots SET statut = 'rejete' WHERE id = $1`, [depotId]);
-    return res.status(status).json({ error: data.message || 'Erreur de paiement', code: data.error });
+    console.error(`❌ Ashtech error: status=${status} error=${data.error} message=${data.message}`);
+    return res.status(400).json({ error: data.message || `Paiement refusé (${data.error || status})`, code: data.error });
 
   } catch (err) {
     console.error('Ashtech initiate error:', err);
-    res.status(500).json({ error: 'Erreur lors de l\'initiation du paiement' });
+    res.status(500).json({ error: 'Erreur lors de l\'initiation du paiement: ' + err.message });
   }
 });
 
 router.post('/otp', authMiddleware, async (req, res) => {
   try {
-    const { depot_id, otp, montant, pays, operateur, numero_payeur, reference } = req.body;
+    const { depot_id, otp } = req.body;
     const userId = req.user.id;
 
     if (!otp || !depot_id) return res.status(400).json({ error: 'OTP et depot_id requis' });
@@ -149,14 +221,16 @@ router.post('/otp', authMiddleware, async (req, res) => {
     if (!depotRes.rows[0]) return res.status(404).json({ error: 'Dépôt introuvable' });
     const depot = depotRes.rows[0];
 
-    const paysInfo = PAYS_ASHTECH[depot.pays];
+    const paysMap = await getPaysAshtech();
+    const paysInfo = paysMap[depot.pays];
     if (!paysInfo) return res.status(400).json({ error: 'Pays non supporté' });
 
+    const phoneNormalise = normaliserTelephone(depot.numero_payeur || '', paysInfo.country_code);
     const notifyUrl = getNotifyUrl(req);
     const payload = {
       amount: parseFloat(depot.montant),
       currency: paysInfo.currency,
-      phone: depot.numero_payeur || '',
+      phone: phoneNormalise,
       operator: depot.operateur,
       country_code: paysInfo.country_code,
       reference: depot.reference,
