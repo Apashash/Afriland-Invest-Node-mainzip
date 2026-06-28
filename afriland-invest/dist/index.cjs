@@ -23,12 +23,13 @@ var require_db = __commonJS({
     "use strict";
     var { Pool } = require("pg");
     function buildConnectionConfig() {
-      const url = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || process.env.POSTGRES_URL || process.env.DB_URL || process.env.POSTGRESQL_URL;
+      const url = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.DB_URL || process.env.POSTGRESQL_URL;
       if (url) {
-        const isReplit = process.env.PGHOST && process.env.PGHOST.includes("replit");
         const isLocalhost = url.includes("localhost") || url.includes("127.0.0.1");
-        const ssl = isLocalhost || isReplit ? false : { rejectUnauthorized: false };
-        console.log(`\u{1F517} DB source : DATABASE_URL`);
+        const isReplitLocal = url.includes("pg.replit") || url.includes("neon.tech") || !url.includes("supabase") && process.env.PGHOST;
+        const ssl = isLocalhost || isReplitLocal ? false : { rejectUnauthorized: false };
+        const source = process.env.SUPABASE_DB_URL ? "SUPABASE_DB_URL" : "DATABASE_URL";
+        console.log(`\u{1F517} DB source : ${source}`);
         return { connectionString: url, ssl };
       }
       if (process.env.PGHOST) {
@@ -631,7 +632,7 @@ var require_deposit = __commonJS({
   "server/routes/deposit.js"(exports2, module2) {
     "use strict";
     var express2 = require("express");
-    var { query } = require_db();
+    var { query, withTransaction } = require_db();
     var { authMiddleware } = require_auth2();
     var multer = require("multer");
     var path2 = require("path");
@@ -642,27 +643,154 @@ var require_deposit = __commonJS({
       filename: (req, file, cb) => cb(null, Date.now() + path2.extname(file.originalname))
     });
     var upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
-    var PAYS_OPERATEURS = {
-      "B\xE9nin": { country_code: "BJ", currency: "XOF", operators: { "35": "MTN Money", "36": "Moov Money" } },
-      "Burkina Faso": { country_code: "BF", currency: "XOF", operators: { "33": "Moov Money", "34": "Orange Money" } },
-      "Cameroun": { country_code: "CM", currency: "XAF", operators: { "1": "MTN Mobile Money", "2": "Orange Money" } },
-      "C\xF4te d'Ivoire": { country_code: "CI", currency: "XOF", operators: { "30": "MTN Money", "32": "Wave", "31": "Moov Money", "29": "Orange Money" } },
-      "Mali": { country_code: "ML", currency: "XOF", operators: { "39": "Orange Money", "40": "Moov Money" } },
-      "Togo": { country_code: "TG", currency: "XOF", operators: { "38": "Moov Money", "37": "T-Money" } },
-      "S\xE9n\xE9gal": { country_code: "SN", currency: "XOF", operators: { "26": "Free Money", "25": "Wave", "24": "Orange Money" } }
+    var ASHTECH_API_KEY = process.env.ASHTECH_API_KEY;
+    var ASHTECH_BASE = "https://ashtechpay.top";
+    var PAYS_ASHTECH = {
+      "Cameroun": { country_code: "CM", currency: "XAF", operators: ["MTN Mobile Money", "Orange Money"] },
+      "Togo": { country_code: "TG", currency: "XOF", operators: ["Flooz (Moov)", "T-Money"] },
+      "Burkina Faso": { country_code: "BF", currency: "XOF", operators: ["Moov Money", "Orange Money"] },
+      "C\xF4te d'Ivoire": { country_code: "CI", currency: "XOF", operators: ["MTN Mobile Money", "Moov Money", "Orange Money", "Wave"] },
+      "B\xE9nin": { country_code: "BJ", currency: "XOF", operators: ["MTN Mobile Money", "Moov Money"] }
     };
+    function getNotifyUrl(req) {
+      const domain = process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DOMAINS?.split(",")[0];
+      if (domain) return `https://${domain}/api/webhook/ashtech`;
+      const host = req.get("host");
+      const proto = req.secure || req.headers["x-forwarded-proto"] === "https" ? "https" : "http";
+      return `${proto}://${host}/api/webhook/ashtech`;
+    }
+    async function callAshtech(endpoint, method, body) {
+      const res = await fetch(`${ASHTECH_BASE}${endpoint}`, {
+        method,
+        headers: {
+          "Authorization": `Bearer ${ASHTECH_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: body ? JSON.stringify(body) : void 0
+      });
+      const data = await res.json();
+      return { status: res.status, data };
+    }
     router.get("/operators", authMiddleware, (req, res) => {
-      res.json({ pays_operateurs: PAYS_OPERATEURS });
+      res.json({ pays_operateurs: PAYS_ASHTECH });
     });
     router.get("/list", authMiddleware, async (req, res) => {
       try {
         const { rows } = await query(
-          "SELECT * FROM depots WHERE user_id = $1 ORDER BY date_depot DESC LIMIT 20",
+          "SELECT * FROM depots WHERE user_id = $1 ORDER BY date_depot DESC LIMIT 30",
           [req.user.id]
         );
         res.json({ depots: rows });
       } catch (err) {
         res.status(500).json({ error: "Erreur serveur" });
+      }
+    });
+    router.post("/initiate", authMiddleware, async (req, res) => {
+      try {
+        if (!ASHTECH_API_KEY) {
+          return res.status(500).json({ error: "Cl\xE9 API Ashtech non configur\xE9e sur le serveur. Contactez l'administrateur." });
+        }
+        const { montant, pays, operateur, numero_payeur } = req.body;
+        const userId = req.user.id;
+        if (!montant || !pays || !operateur) {
+          return res.status(400).json({ error: "Champs obligatoires manquants" });
+        }
+        const paysInfo = PAYS_ASHTECH[pays];
+        if (!paysInfo) return res.status(400).json({ error: "Pays non support\xE9" });
+        const montantNum = parseFloat(montant);
+        const minDepotRes = await query("SELECT valeur FROM settings WHERE cle = 'min_depot'").catch(() => ({ rows: [] }));
+        const minDepot = parseFloat(minDepotRes.rows[0]?.valeur || 500);
+        if (montantNum < minDepot) {
+          return res.status(400).json({ error: `Le montant minimum est de ${new Intl.NumberFormat("fr-FR").format(minDepot)} FCFA` });
+        }
+        const rand = Array.from({ length: 10 }, () => Math.floor(Math.random() * 10)).join("");
+        const reference = `AF${rand}`;
+        const { rows } = await query(
+          `INSERT INTO depots (user_id, montant, pays, operateur, numero_payeur, statut, reference, type_paiement)
+       VALUES ($1, $2, $3, $4, $5, 'en_attente', $6, 'automatique') RETURNING id`,
+          [userId, montantNum, pays, operateur, numero_payeur || "", reference]
+        );
+        const depotId = rows[0].id;
+        const notifyUrl = getNotifyUrl(req);
+        const payload = {
+          amount: montantNum,
+          currency: paysInfo.currency,
+          phone: numero_payeur || "",
+          operator: operateur,
+          country_code: paysInfo.country_code,
+          reference,
+          notify_url: notifyUrl
+        };
+        const { status, data } = await callAshtech("/v1/collect", "POST", payload);
+        if (status === 202) {
+          await query(
+            `UPDATE depots SET ashtech_transaction_id = $1, wave_url = $2 WHERE id = $3`,
+            [data.transaction_id, data.wave_url || null, depotId]
+          );
+          if (data.flow === "wave") {
+            return res.json({ type: "wave", depot_id: depotId, transaction_id: data.transaction_id, wave_url: data.wave_url, reference });
+          }
+          return res.json({ type: "ussd_push", depot_id: depotId, transaction_id: data.transaction_id, reference });
+        }
+        if (status === 400 && data.error === "otp_required") {
+          await query(`UPDATE depots SET ashtech_transaction_id = $1 WHERE id = $2`, [data.transaction_id || reference, depotId]);
+          return res.json({
+            type: data.ussd_code ? "otp_ussd" : "otp_sms",
+            depot_id: depotId,
+            reference,
+            ussd_code: data.ussd_code || null,
+            message: data.message
+          });
+        }
+        await query(`UPDATE depots SET statut = 'rejete' WHERE id = $1`, [depotId]);
+        return res.status(status).json({ error: data.message || "Erreur de paiement", code: data.error });
+      } catch (err) {
+        console.error("Ashtech initiate error:", err);
+        res.status(500).json({ error: "Erreur lors de l'initiation du paiement" });
+      }
+    });
+    router.post("/otp", authMiddleware, async (req, res) => {
+      try {
+        const { depot_id, otp, montant, pays, operateur, numero_payeur, reference } = req.body;
+        const userId = req.user.id;
+        if (!otp || !depot_id) return res.status(400).json({ error: "OTP et depot_id requis" });
+        const depotRes = await query("SELECT * FROM depots WHERE id = $1 AND user_id = $2", [depot_id, userId]);
+        if (!depotRes.rows[0]) return res.status(404).json({ error: "D\xE9p\xF4t introuvable" });
+        const depot = depotRes.rows[0];
+        const paysInfo = PAYS_ASHTECH[depot.pays];
+        if (!paysInfo) return res.status(400).json({ error: "Pays non support\xE9" });
+        const notifyUrl = getNotifyUrl(req);
+        const payload = {
+          amount: parseFloat(depot.montant),
+          currency: paysInfo.currency,
+          phone: depot.numero_payeur || "",
+          operator: depot.operateur,
+          country_code: paysInfo.country_code,
+          reference: depot.reference,
+          otp,
+          notify_url: notifyUrl
+        };
+        const { status, data } = await callAshtech("/v1/collect", "POST", payload);
+        if (status === 202) {
+          await query(
+            `UPDATE depots SET ashtech_transaction_id = $1 WHERE id = $2`,
+            [data.transaction_id, depot_id]
+          );
+          return res.json({ type: "ussd_push", depot_id, transaction_id: data.transaction_id, reference: depot.reference });
+        }
+        return res.status(status).json({ error: data.message || "OTP invalide ou expir\xE9", code: data.error });
+      } catch (err) {
+        console.error("Ashtech OTP error:", err);
+        res.status(500).json({ error: "Erreur lors de la validation OTP" });
+      }
+    });
+    router.get("/status/:transactionId", authMiddleware, async (req, res) => {
+      try {
+        const { transactionId } = req.params;
+        const { status, data } = await callAshtech(`/v1/transaction/${transactionId}`, "GET");
+        res.json({ status: data.status, data });
+      } catch (err) {
+        res.status(500).json({ error: "Erreur v\xE9rification statut" });
       }
     });
     router.post("/request", authMiddleware, upload.single("preuve"), async (req, res) => {
@@ -679,12 +807,11 @@ var require_deposit = __commonJS({
           return res.status(400).json({ error: `Le montant minimum de d\xE9p\xF4t est de ${new Intl.NumberFormat("fr-FR").format(minDepot)} FCFA` });
         }
         const preuve_path = req.file ? req.file.filename : null;
-        const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-        const rand = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-        const reference = `payfastbdk${rand}`;
+        const rand = Array.from({ length: 10 }, () => Math.floor(Math.random() * 10)).join("");
+        const reference = `payfast${rand}`;
         const { rows } = await query(
-          `INSERT INTO depots (user_id, montant, pays, operateur, numero_payeur, preuve_paiement, statut, reference)
-       VALUES ($1, $2, $3, $4, $5, $6, 'en_attente', $7) RETURNING id`,
+          `INSERT INTO depots (user_id, montant, pays, operateur, numero_payeur, preuve_paiement, statut, reference, type_paiement)
+       VALUES ($1, $2, $3, $4, $5, $6, 'en_attente', $7, 'manuel') RETURNING id`,
           [userId, montantNum, pays, operateur, numero_payeur, preuve_path, reference]
         );
         res.json({
@@ -816,9 +943,8 @@ var require_withdrawal = __commonJS({
           const checkSolde = await client.query("SELECT solde FROM soldes WHERE user_id = $1 FOR UPDATE", [userId]);
           const currentSolde = parseFloat(checkSolde.rows[0]?.solde || 0);
           if (currentSolde < montantNum) return { error: "Solde insuffisant" };
-          const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-          const rand = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-          const reference = `payfastbdk${rand}`;
+          const rand = Array.from({ length: 10 }, () => Math.floor(Math.random() * 10)).join("");
+          const reference = `payfast${rand}`;
           await client.query(
             "INSERT INTO retraits (user_id, montant, methode, numero_compte, statut, reference) VALUES ($1, $2, $3, $4, 'en_attente', $5)",
             [userId, montantNum, wallet.methode_paiement, wallet.numero_telephone, reference]
@@ -1652,6 +1778,7 @@ var require_transactions = __commonJS({
         sens: "+",
         statut: d.statut,
         date: d.date_depot,
+        reference: d.reference || null,
         details: { pays: d.pays, operateur: d.operateur, numero_payeur: d.numero_payeur }
       };
     }
@@ -1664,6 +1791,7 @@ var require_transactions = __commonJS({
         sens: "-",
         statut: r.statut,
         date: r.date_demande,
+        reference: r.reference || null,
         details: { methode: r.methode, numero_compte: r.numero_compte }
       };
     }
@@ -1733,6 +1861,165 @@ var require_transactions = __commonJS({
   }
 });
 
+// server/routes/notifications.js
+var require_notifications = __commonJS({
+  "server/routes/notifications.js"(exports2, module2) {
+    "use strict";
+    var express2 = require("express");
+    var { query } = require_db();
+    var { authMiddleware } = require_auth2();
+    var router = express2.Router();
+    router.get("/", authMiddleware, async (req, res) => {
+      try {
+        const userId = req.user.id;
+        const [depotsRes, retraitsRes, revenusRes, commandesRes] = await Promise.all([
+          query(`SELECT id, montant, statut, date_depot AS date, 'depot' AS kind FROM depots WHERE user_id = $1 ORDER BY date_depot DESC LIMIT 10`, [userId]),
+          query(`SELECT id, montant, statut, date_demande AS date, 'retrait' AS kind FROM retraits WHERE user_id = $1 ORDER BY date_demande DESC LIMIT 10`, [userId]),
+          query(`SELECT id, montant, type, date_paiement AS date FROM historique_revenus WHERE user_id = $1 ORDER BY date_paiement DESC LIMIT 10`, [userId]),
+          query(`SELECT c.id, c.montant, c.statut, c.date_debut AS date, p.nom AS plan_nom FROM commandes c LEFT JOIN planinvestissement p ON c.plan_id = p.id WHERE c.user_id = $1 ORDER BY c.date_debut DESC LIMIT 5`, [userId])
+        ]);
+        const REVENU_LABELS = {
+          parrainage: "Commission parrainage re\xE7ue",
+          bonus: "Bonus roue de la fortune",
+          credit_admin: "Cr\xE9dit administrateur",
+          cadeau_vip: "Cadeau VIP d\xE9bloqu\xE9",
+          revenu: "Revenu investissement vers\xE9"
+        };
+        const STATUT_LABELS = {
+          valide: "Valid\xE9",
+          en_attente: "En attente",
+          rejete: "Rejet\xE9",
+          actif: "Actif",
+          termine: "Termin\xE9",
+          annule: "Annul\xE9",
+          refuse: "Refus\xE9"
+        };
+        const notifs = [
+          ...depotsRes.rows.map((r) => ({
+            id: `depot-${r.id}`,
+            kind: "depot",
+            titre: "D\xE9p\xF4t",
+            message: `${new Intl.NumberFormat("fr-FR").format(Math.round(r.montant))} FCFA \u2014 ${STATUT_LABELS[r.statut] || r.statut}`,
+            statut: r.statut,
+            date: r.date,
+            icon: "fa-arrow-down",
+            color: "#34C759"
+          })),
+          ...retraitsRes.rows.map((r) => ({
+            id: `retrait-${r.id}`,
+            kind: "retrait",
+            titre: "Retrait",
+            message: `${new Intl.NumberFormat("fr-FR").format(Math.round(r.montant))} FCFA \u2014 ${STATUT_LABELS[r.statut] || r.statut}`,
+            statut: r.statut,
+            date: r.date,
+            icon: "fa-hand-holding-usd",
+            color: "#FF3B30"
+          })),
+          ...revenusRes.rows.map((r) => ({
+            id: `revenu-${r.id}`,
+            kind: r.type || "revenu",
+            titre: REVENU_LABELS[r.type] || "Revenu vers\xE9",
+            message: `+${new Intl.NumberFormat("fr-FR").format(Math.round(r.montant))} FCFA`,
+            statut: "valide",
+            date: r.date,
+            icon: r.type === "parrainage" ? "fa-users" : r.type === "bonus" ? "fa-dice" : "fa-coins",
+            color: "#FF9500"
+          })),
+          ...commandesRes.rows.map((r) => ({
+            id: `commande-${r.id}`,
+            kind: "investissement",
+            titre: `Investissement${r.plan_nom ? " \u2014 " + r.plan_nom : ""}`,
+            message: `${new Intl.NumberFormat("fr-FR").format(Math.round(r.montant))} FCFA \u2014 ${STATUT_LABELS[r.statut] || r.statut}`,
+            statut: r.statut,
+            date: r.date,
+            icon: "fa-chart-line",
+            color: "#5856D6"
+          }))
+        ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 20);
+        res.json({ notifications: notifs });
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Erreur serveur" });
+      }
+    });
+    module2.exports = router;
+  }
+});
+
+// server/routes/webhook.js
+var require_webhook = __commonJS({
+  "server/routes/webhook.js"(exports2, module2) {
+    "use strict";
+    var express2 = require("express");
+    var { query, withTransaction, pool } = require_db();
+    var router = express2.Router();
+    router.post("/ashtech", express2.json(), async (req, res) => {
+      res.status(200).json({ received: true });
+      try {
+        const { event, transaction_id, reference, amount, total_amount, currency, status } = req.body;
+        console.log(`\u{1F4E5} Ashtech webhook: ${event} \u2014 ref=${reference} txn=${transaction_id}`);
+        if (event === "payment.completed") {
+          const depotRes = await query(
+            "SELECT * FROM depots WHERE reference = $1 AND statut = 'en_attente'",
+            [reference]
+          );
+          if (!depotRes.rows[0]) {
+            console.warn(`\u26A0\uFE0F  Webhook: d\xE9p\xF4t introuvable ou d\xE9j\xE0 trait\xE9 pour ref=${reference}`);
+            return;
+          }
+          const depot = depotRes.rows[0];
+          const montantNet = parseFloat(total_amount || depot.montant);
+          await withTransaction(async (client) => {
+            await client.query(
+              "UPDATE depots SET statut = 'valide', date_traitement = NOW(), ashtech_transaction_id = $1 WHERE id = $2",
+              [transaction_id, depot.id]
+            );
+            await client.query(
+              `INSERT INTO soldes (user_id, solde, date_maj) VALUES ($1, $2, NOW())
+           ON CONFLICT (user_id) DO UPDATE SET solde = soldes.solde + $2, date_maj = NOW()`,
+              [depot.user_id, montantNet]
+            );
+            await client.query(
+              `INSERT INTO notifications (user_id, titre, message, type, date_creation)
+           VALUES ($1, $2, $3, 'depot', NOW())`,
+              [
+                depot.user_id,
+                "\u2705 D\xE9p\xF4t confirm\xE9",
+                `Votre d\xE9p\xF4t de ${new Intl.NumberFormat("fr-FR").format(montantNet)} FCFA a \xE9t\xE9 valid\xE9 automatiquement.`
+              ]
+            ).catch(() => {
+            });
+          });
+          console.log(`\u2705 D\xE9p\xF4t ref=${reference} valid\xE9 \u2014 ${montantNet} cr\xE9dit\xE9s \xE0 user_id=${depot.user_id}`);
+        }
+        if (event === "payment.failed") {
+          await query(
+            "UPDATE depots SET statut = 'rejete', date_traitement = NOW() WHERE reference = $1 AND statut = 'en_attente'",
+            [reference]
+          );
+          const depotRes = await query("SELECT user_id FROM depots WHERE reference = $1", [reference]);
+          if (depotRes.rows[0]) {
+            await query(
+              `INSERT INTO notifications (user_id, titre, message, type, date_creation)
+           VALUES ($1, $2, $3, 'depot', NOW())`,
+              [
+                depotRes.rows[0].user_id,
+                "\u274C D\xE9p\xF4t \xE9chou\xE9",
+                `Votre d\xE9p\xF4t (r\xE9f: ${reference}) n'a pas pu \xEAtre trait\xE9. Veuillez r\xE9essayer.`
+              ]
+            ).catch(() => {
+            });
+          }
+          console.log(`\u274C D\xE9p\xF4t ref=${reference} \xE9chou\xE9`);
+        }
+      } catch (err) {
+        console.error("\u274C Webhook Ashtech error:", err.message);
+      }
+    });
+    module2.exports = router;
+  }
+});
+
 // server/migrate.js
 var require_migrate = __commonJS({
   "server/migrate.js"(exports2, module2) {
@@ -1779,6 +2066,10 @@ var require_migrate = __commonJS({
     date_demande TIMESTAMP DEFAULT NOW(),
     date_traitement TIMESTAMP
   )`,
+      // Colonnes Ashtech Pay dans depots
+      `ALTER TABLE depots ADD COLUMN IF NOT EXISTS ashtech_transaction_id VARCHAR(100)`,
+      `ALTER TABLE depots ADD COLUMN IF NOT EXISTS type_paiement VARCHAR(20) DEFAULT 'manuel'`,
+      `ALTER TABLE depots ADD COLUMN IF NOT EXISTS wave_url TEXT`,
       // Table soldes
       `CREATE TABLE IF NOT EXISTS soldes (
     id SERIAL PRIMARY KEY,
@@ -1899,6 +2190,9 @@ var require_migrate = __commonJS({
     nom_fichier VARCHAR(255) NOT NULL,
     date_upload TIMESTAMP DEFAULT NOW()
   )`,
+      // Colonnes référence pour dépôts et retraits
+      `ALTER TABLE depots ADD COLUMN IF NOT EXISTS reference VARCHAR(50)`,
+      `ALTER TABLE retraits ADD COLUMN IF NOT EXISTS reference VARCHAR(50)`,
       // Colonne niveau dans cadeaux_vip (si manquante)
       `ALTER TABLE cadeaux_vip ADD COLUMN IF NOT EXISTS niveau INT DEFAULT 1`,
       // Table vip_salaires (niveaux configurables par l'admin)
@@ -2015,6 +2309,8 @@ var adminRoutes = require_admin();
 var postRoutes = require_posts();
 var annoncesRoutes = require_annonces();
 var transactionsRoutes = require_transactions();
+var notificationsRoutes = require_notifications();
+var webhookRoutes = require_webhook();
 var { runMigrations } = require_migrate();
 var app = express();
 var PORT = process.env.PORT || 5e3;
@@ -2034,6 +2330,8 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/annonces", annoncesRoutes);
 app.use("/api/transactions", transactionsRoutes);
+app.use("/api/notifications", notificationsRoutes);
+app.use("/api/webhook", webhookRoutes);
 app.get("/api/setup-admin", async (req, res) => {
   const { pool } = require_db();
   const secret = req.query.secret;
