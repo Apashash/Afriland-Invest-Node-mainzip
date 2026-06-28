@@ -201,6 +201,9 @@ export default function Admin() {
   const [salaires, setSalaires] = useState([]);
   const [newSalaire, setNewSalaire] = useState({ niveau: '', label: '', requis: '', cadeau: '' });
   const [transactions, setTransactions] = useState([]);
+  const [userTxModal, setUserTxModal] = useState(null);
+  const [userTxList, setUserTxList] = useState([]);
+  const [userTxLoading, setUserTxLoading] = useState(false);
   const [payingRevenu, setPayingRevenu] = useState(false);
   const [dernierVersement, setDernierVersement] = useState(null);
 
@@ -386,6 +389,18 @@ export default function Admin() {
       const res = await api.put(`/admin/users/${u.id}/role`);
       toast.success(res.data.message + ' ✅'); loadAll();
     } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); }
+  };
+
+  const handleViewUserTx = async (u) => {
+    setActionMenu(null);
+    setUserTxModal(u);
+    setUserTxList([]);
+    setUserTxLoading(true);
+    try {
+      const res = await api.get(`/admin/users/${u.id}/transactions`);
+      setUserTxList(res.data.transactions || []);
+    } catch { toast.error('Erreur lors du chargement'); }
+    finally { setUserTxLoading(false); }
   };
 
   const saveSettings = async () => {
@@ -730,6 +745,7 @@ export default function Admin() {
               {[
                 { icon: 'fa-coins', color: '#FF9500', label: 'Modifier le solde', action: () => openBalanceModal(actionMenu) },
                 { icon: 'fa-user-edit', color: '#007AFF', label: 'Informations & Sécurité', action: () => openInfoModal(actionMenu) },
+                { icon: 'fa-receipt', color: '#34C759', label: 'Historique des transactions', action: () => handleViewUserTx(actionMenu) },
                 { icon: actionMenu.role === 'admin' ? 'fa-user-minus' : 'fa-user-shield', color: actionMenu.role === 'admin' ? '#8E8E93' : '#5856D6', label: actionMenu.role === 'admin' ? 'Retirer les droits admin' : 'Nommer administrateur', action: () => handleToggleAdmin(actionMenu) },
                 { icon: actionMenu.banni ? 'fa-user-check' : 'fa-ban', color: actionMenu.banni ? '#34C759' : '#FF3B30', label: actionMenu.banni ? 'Débannir l\'utilisateur' : 'Bannir l\'utilisateur', action: () => handleBan(actionMenu) },
                 { icon: actionMenu.retrait_bloque ? 'fa-lock-open' : 'fa-lock', color: actionMenu.retrait_bloque ? '#34C759' : '#5856D6', label: actionMenu.retrait_bloque ? 'Débloquer le retrait' : 'Bloquer le retrait', action: () => handleBlockWithdrawal(actionMenu) },
@@ -741,10 +757,68 @@ export default function Admin() {
                   <div style={{ width: 38, height: 38, borderRadius: 10, background: item.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <i className={`fas ${item.icon}`} style={{ color: item.color, fontSize: 15 }} />
                   </div>
-                  <span style={{ fontWeight: 600, fontSize: 14, color: i === 5 ? '#FF3B30' : 'var(--text-dark)' }}>{item.label}</span>
+                  <span style={{ fontWeight: 600, fontSize: 14, color: i === 6 ? '#FF3B30' : 'var(--text-dark)' }}>{item.label}</span>
                   <i className="fas fa-chevron-right" style={{ marginLeft: 'auto', color: '#CCC', fontSize: 11 }} />
                 </button>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── User Transactions Modal ── */}
+        {userTxModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={() => setUserTxModal(null)}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#F5F5F5', borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+              {/* Header */}
+              <div style={{ background: 'linear-gradient(135deg, #E07800, #FF9500)', borderRadius: '24px 24px 0 0', padding: '18px 20px 16px' }}>
+                <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.4)', margin: '0 auto 14px' }} />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <i className="fas fa-receipt" style={{ color: '#fff', fontSize: 16 }} />
+                    </div>
+                    <div>
+                      <p style={{ color: '#fff', fontWeight: 800, fontSize: 15 }}>Transactions de {userTxModal.nom}</p>
+                      <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>{userTxModal.telephone} · {userTxList.length} opération(s)</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setUserTxModal(null)} style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.25)', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 14 }}>✕</button>
+                </div>
+              </div>
+
+              {/* Liste */}
+              <div style={{ overflowY: 'auto', flex: 1, padding: '14px 16px 28px' }}>
+                {userTxLoading ? (
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
+                    <div className="loading-spinner" />
+                  </div>
+                ) : userTxList.length === 0 ? (
+                  <div className="empty-state" style={{ padding: '40px 0' }}>
+                    <i className="fas fa-receipt" style={{ fontSize: 32, color: '#CCC', marginBottom: 12 }} />
+                    <p style={{ color: '#999', fontWeight: 600 }}>Aucune transaction</p>
+                  </div>
+                ) : userTxList.map(t => {
+                  const kindColor = { depot: '#34C759', retrait: '#FF3B30', investissement: '#5856D6', parrainage: '#FF9500', revenu: '#007AFF', credit_admin: '#FF9500', bonus: '#FF9500' };
+                  const kindIcon = { depot: 'fa-arrow-down', retrait: 'fa-arrow-up', investissement: 'fa-chart-line', parrainage: 'fa-users', revenu: 'fa-coins', credit_admin: 'fa-coins', bonus: 'fa-dice' };
+                  const color = kindColor[t.kind] || '#999';
+                  const icon = kindIcon[t.kind] || 'fa-circle';
+                  return (
+                    <div key={t.id} style={{ background: '#fff', borderRadius: 14, padding: '12px 14px', marginBottom: 8, boxShadow: '0 1px 6px rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 38, height: 38, borderRadius: 10, background: color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <i className={`fas ${icon}`} style={{ color, fontSize: 14 }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-dark)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.label}</p>
+                        <p style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{t.date ? new Date(t.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</p>
+                      </div>
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <p style={{ fontWeight: 800, fontSize: 14, color: t.sens === '+' ? '#34C759' : '#FF3B30' }}>{t.sens}{fmt(t.montant)} <span style={{ fontSize: 11, fontWeight: 500 }}>FCFA</span></p>
+                        <StatusBadge statut={t.statut} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
