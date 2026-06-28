@@ -54,12 +54,19 @@ export default function Deposit() {
       setHistory(histRes.data.depots);
       setSolde(userRes.data.solde || 0);
       setMinDepot(parseFloat(settingsRes.data.min_depot || 500));
-      const firstPays = Object.keys(ops)[0];
-      if (firstPays) {
-        const firstOps = Array.isArray(ops[firstPays]?.operators)
-          ? ops[firstPays].operators
-          : Object.values(ops[firstPays]?.operators || {});
-        setForm(f => ({ ...f, pays: firstPays, operateur: firstOps[0] || '' }));
+      const userPays = userRes.data.pays;
+      const userTel = userRes.data.telephone || '';
+      const chosenPays = (userPays && ops[userPays]) ? userPays : Object.keys(ops)[0];
+      if (chosenPays) {
+        const chosenOps = Array.isArray(ops[chosenPays]?.operators)
+          ? ops[chosenPays].operators
+          : Object.values(ops[chosenPays]?.operators || {});
+        setForm(f => ({
+          ...f,
+          pays: chosenPays,
+          operateur: chosenOps[0] || '',
+          numero_payeur: f.numero_payeur || userTel,
+        }));
       }
     } catch { toast.error('Erreur de chargement'); }
     finally { setLoading(false); }
