@@ -169,18 +169,6 @@ export default function Register() {
               </div>
             </div>
 
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ background: '#F7F7F7', borderRadius: 12, border: '1.5px solid #E8E8E8' }}>
-                <select
-                  value={form.pays}
-                  onChange={e => setForm({ ...form, pays: e.target.value })}
-                  style={{ width: '100%', background: 'transparent', border: 'none', padding: '13px 14px', fontSize: 15, color: '#1A1A1A' }}
-                >
-                  {PAYS.map(p => <option key={p.nom} value={p.nom}>{p.nom}</option>)}
-                </select>
-              </div>
-            </div>
-
             <div style={{ marginBottom: 20 }}>
               <div style={{
                 background: codeFromUrl ? '#FFF8F0' : '#F7F7F7',
