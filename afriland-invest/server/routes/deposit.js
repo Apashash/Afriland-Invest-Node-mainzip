@@ -62,6 +62,10 @@ router.get('/list', authMiddleware, async (req, res) => {
 
 router.post('/initiate', authMiddleware, async (req, res) => {
   try {
+    if (!ASHTECH_API_KEY) {
+      return res.status(500).json({ error: 'Clé API Ashtech non configurée sur le serveur. Contactez l\'administrateur.' });
+    }
+
     const { montant, pays, operateur, numero_payeur } = req.body;
     const userId = req.user.id;
 

@@ -125,7 +125,8 @@ export default function Deposit() {
         setStep('otp');
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Erreur lors du paiement');
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Erreur lors du paiement';
+      toast.error(msg, { duration: 6000 });
     } finally { setSubmitting(false); }
   };
 
