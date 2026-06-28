@@ -617,10 +617,10 @@ router.post('/payer-revenus', adminMiddleware, async (req, res) => {
     return res.status(409).json({ error: 'Un versement est déjà en cours, veuillez patienter.' });
   }
   try {
-    const result = await payerRevenusJournaliers();
+    const result = await payerRevenusJournaliers({ force: true });
     res.json({
       success: true,
-      message: `✅ ${result.creditees} investisseur(s) crédité(s), ${result.terminees} plan(s) terminé(s). Total versé : ${result.totalVerse.toFixed(0)} FCFA.`,
+      message: `✅ ${result.creditees} investisseur(s) crédité(s), ${result.terminees} plan(s) terminé(s). Total versé : ${(result.totalVerse || 0).toFixed(0)} FCFA.`,
       details: result,
     });
   } catch (err) {
