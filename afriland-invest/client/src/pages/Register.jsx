@@ -49,7 +49,7 @@ export default function Register() {
     if (form.mot_de_passe.length < 6) return toast.error(t('password_min'));
     setLoading(true);
     try {
-      await register({ ...form, telephone: form.indicatif + form.telephone });
+      await register({ ...form });
       navigate('/');
     } catch (err) {
       toast.error(err.response?.data?.error || "Erreur d'inscription");

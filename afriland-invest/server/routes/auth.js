@@ -25,7 +25,10 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Code pays non valide' });
     }
 
-    const full_tel = indicatif + telephone.replace(/\D/g, '');
+    const codeDigits = indicatif.replace(/\D/g, '');
+    let localTel = telephone.replace(/\D/g, '');
+    if (localTel.startsWith(codeDigits)) localTel = localTel.slice(codeDigits.length);
+    const full_tel = indicatif + localTel;
 
     const { rows } = await query('SELECT * FROM utilisateurs WHERE telephone = $1', [full_tel]);
     const user = rows[0];
@@ -74,7 +77,10 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Pays non éligible' });
     }
 
-    const full_tel = indicatif + telephone.replace(/\D/g, '');
+    const codeDigits = indicatif.replace(/\D/g, '');
+    let localTel = telephone.replace(/\D/g, '');
+    if (localTel.startsWith(codeDigits)) localTel = localTel.slice(codeDigits.length);
+    const full_tel = indicatif + localTel;
 
     const existing = await query('SELECT id FROM utilisateurs WHERE telephone = $1', [full_tel]);
     if (existing.rows.length > 0) {
