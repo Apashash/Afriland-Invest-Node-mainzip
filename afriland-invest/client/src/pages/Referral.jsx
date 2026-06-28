@@ -25,7 +25,7 @@ export default function Referral() {
   };
 
   const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0));
-  const lien = data?.code_parrainage ? `${window.location.origin}/login?p=${data.code_parrainage}` : '';
+  const lien = data?.code_parrainage ? `${window.location.origin}/register?p=${data.code_parrainage}` : '';
 
   const NIVEAUX = [
     { num: 1, commission: data?.commissions?.niveau1 ?? '10' },

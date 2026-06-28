@@ -1,37 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useLanguage, LangToggle } from '../contexts/LanguageContext.jsx';
 
 const PAYS = [
-  { code: '+237', label: '🇨🇲 +237', nom: 'Cameroun' },
-  { code: '+225', label: '🇨🇮 +225', nom: "Côte d'Ivoire" },
-  { code: '+229', label: '🇧🇯 +229', nom: 'Bénin' },
-  { code: '+226', label: '🇧🇫 +226', nom: 'Burkina Faso' },
-  { code: '+228', label: '🇹🇬 +228', nom: 'Togo' },
+  { code: '+237', label: '🇨🇲 +237' },
+  { code: '+225', label: '🇨🇮 +225' },
+  { code: '+229', label: '🇧🇯 +229' },
+  { code: '+226', label: '🇧🇫 +226' },
+  { code: '+228', label: '🇹🇬 +228' },
 ];
 
 export default function Login() {
-  const [searchParams] = useSearchParams();
-  const codeFromUrl = (searchParams.get('p') || '').toUpperCase();
-
   const [lienWhatsapp, setLienWhatsapp] = useState('https://wa.me/237600000000');
-  const [tab, setTab] = useState(codeFromUrl ? 'register' : 'login');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [loginForm, setLoginForm] = useState({ indicatif: '+237', telephone: '', mot_de_passe: '' });
-  const [regForm, setRegForm] = useState({ nom: '', indicatif: '+237', telephone: '', mot_de_passe: '', pays: 'Cameroun', code_parrain: codeFromUrl });
+  const [form, setForm] = useState({ indicatif: '+237', telephone: '', mot_de_passe: '' });
 
-  const handleIndicatifChange = (val, isReg) => {
-    const found = PAYS.find(p => p.code === val);
-    if (isReg) {
-      setRegForm(f => ({ ...f, indicatif: val, pays: found?.nom || f.pays }));
-    } else {
-      setLoginForm(f => ({ ...f, indicatif: val }));
-    }
-  };
-  const { login, register } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const { t } = useLanguage();
 
@@ -43,78 +30,39 @@ export default function Login() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (!loginForm.telephone || !loginForm.mot_de_passe) return toast.error(t('fill_all'));
+    if (!form.telephone || !form.mot_de_passe) return toast.error(t('fill_all'));
     setLoading(true);
     try {
-      await login(loginForm.indicatif, loginForm.telephone, loginForm.mot_de_passe);
+      await login(form.indicatif, form.telephone, form.mot_de_passe);
       navigate('/');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Identifiants incorrects');
     } finally { setLoading(false); }
   };
 
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    if (!regForm.nom || !regForm.telephone || !regForm.mot_de_passe) return toast.error(t('fill_all'));
-    if (regForm.mot_de_passe.length < 6) return toast.error(t('password_min'));
-    setLoading(true);
-    try {
-      await register({ ...regForm, telephone: regForm.indicatif + regForm.telephone });
-      navigate('/');
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Erreur d\'inscription');
-    } finally { setLoading(false); }
-  };
-
   return (
     <div className="container" style={{ background: '#fff', minHeight: '100vh' }}>
-      {/* Hero */}
       <div style={{
-        height: 260,
-        position: 'relative',
-        overflow: 'hidden',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'column',
+        height: 260, position: 'relative', overflow: 'hidden',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column',
       }}>
-        {/* Fond orange uniforme */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'linear-gradient(135deg, #E07800 0%, #FF9500 100%)',
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #E07800 0%, #FF9500 100%)' }} />
+        <img src="/payfast-bg.jpg" alt="" style={{
+          position: 'absolute', top: '50%', left: '50%',
+          transform: 'translate(-50%, -50%)', height: '80%', width: 'auto',
+          objectFit: 'contain', mixBlendMode: 'multiply',
         }} />
-        {/* Logo PayFast centré */}
-        <img
-          src="/payfast-bg.jpg"
-          alt=""
-          style={{
-            position: 'absolute',
-            top: '50%', left: '50%',
-            transform: 'translate(-50%, -50%)',
-            height: '80%',
-            width: 'auto',
-            objectFit: 'contain',
-            mixBlendMode: 'multiply',
-          }}
-        />
-
-        {/* Bouton langue */}
         <div style={{ position: 'absolute', top: 14, right: 16, zIndex: 10 }}>
           <LangToggle />
         </div>
-
-        {/* Bandeau défilant */}
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0,
-          background: 'rgba(0,0,0,0.35)',
-          padding: '6px 0', overflow: 'hidden', zIndex: 3,
+          background: 'rgba(0,0,0,0.35)', padding: '6px 0', overflow: 'hidden', zIndex: 3,
         }}>
           <div style={{ animation: 'ticker 18s linear infinite', whiteSpace: 'nowrap', fontSize: 12, color: '#fff', fontWeight: 500 }}>
             &nbsp;&nbsp;&nbsp;🎉 Jean C. a retiré 15 000 FCFA &nbsp;•&nbsp; Marie D. a investi dans VIP 3 &nbsp;•&nbsp; Paul O. a reçu 8 500 FCFA &nbsp;•&nbsp; Ibrahim S. a activé VIP 5 &nbsp;•&nbsp;
           </div>
         </div>
-
-        {/* Texte au-dessus */}
         <div style={{ textAlign: 'center', position: 'relative', zIndex: 2, marginTop: 20 }}>
           <p style={{ color: '#fff', fontSize: 26, fontWeight: 800, lineHeight: 1.2, textShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
             {t('invest_tagline')}
@@ -125,232 +73,89 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Form Card */}
-      <div style={{ background: '#F5F1E8', minHeight: 'calc(100vh - 240px)', padding: '0 16px 40px' }}>
+      <div style={{ background: '#F5F1E8', minHeight: 'calc(100vh - 260px)', padding: '0 16px 40px' }}>
         <div style={{
-          background: '#fff',
-          borderRadius: 24,
-          padding: 20,
-          marginTop: -24,
-          boxShadow: '0 4px 24px rgba(0,0,0,0.1)',
-          position: 'relative', zIndex: 10,
+          background: '#fff', borderRadius: 24, padding: 20, marginTop: -24,
+          boxShadow: '0 4px 24px rgba(0,0,0,0.1)', position: 'relative', zIndex: 10,
         }}>
-          {/* Tabs */}
-          <div style={{
-            display: 'flex', background: '#F5F1E8', borderRadius: 50, padding: 4, marginBottom: 20,
-          }}>
-            {['login', 'register'].map(tabKey => (
-              <button key={tabKey} onClick={() => setTab(tabKey)} style={{
-                flex: 1, padding: '10px', borderRadius: 50, border: 'none', cursor: 'pointer',
-                background: tab === tabKey ? '#FF9500' : 'transparent',
-                color: tab === tabKey ? '#fff' : '#999',
-                fontWeight: tab === tabKey ? 700 : 400,
-                fontSize: 14, transition: 'all 0.25s',
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: '#1A1A1A', marginBottom: 4, textAlign: 'center' }}>
+            {t('login_tab')}
+          </h2>
+          <p style={{ fontSize: 13, color: '#999', textAlign: 'center', marginBottom: 20 }}>
+            Connectez-vous à votre compte
+          </p>
+
+          <form onSubmit={handleLogin}>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{
+                display: 'flex', alignItems: 'center',
+                background: '#F7F7F7', borderRadius: 12, border: '1.5px solid #E8E8E8', overflow: 'hidden',
               }}>
-                {tabKey === 'login' ? t('login_tab') : t('register_tab')}
-              </button>
-            ))}
+                <select
+                  value={form.indicatif}
+                  onChange={e => setForm({ ...form, indicatif: e.target.value })}
+                  style={{
+                    background: 'transparent', border: 'none', padding: '13px 10px',
+                    color: '#FF9500', fontWeight: 700, fontSize: 14, width: 90, flexShrink: 0,
+                  }}
+                >
+                  {PAYS.map(p => <option key={p.code} value={p.code}>{p.label}</option>)}
+                </select>
+                <div style={{ width: 1, height: 24, background: '#E8E8E8' }} />
+                <input
+                  type="tel" placeholder={t('phone_placeholder')}
+                  value={form.telephone}
+                  onChange={e => setForm({ ...form, telephone: e.target.value })}
+                  style={{ flex: 1, background: 'transparent', border: 'none', padding: '13px 14px', fontSize: 15, color: '#1A1A1A' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <div style={{
+                display: 'flex', alignItems: 'center',
+                background: '#F7F7F7', borderRadius: 12, border: '1.5px solid #E8E8E8',
+              }}>
+                <input
+                  type={showPass ? 'text' : 'password'}
+                  placeholder={t('password_placeholder')}
+                  value={form.mot_de_passe}
+                  onChange={e => setForm({ ...form, mot_de_passe: e.target.value })}
+                  style={{ flex: 1, background: 'transparent', border: 'none', padding: '13px 14px', fontSize: 15, color: '#1A1A1A' }}
+                />
+                <button type="button" onClick={() => setShowPass(!showPass)}
+                  style={{ background: 'none', border: 'none', padding: '0 14px', color: '#999' }}>
+                  <i className={`fas fa-eye${showPass ? '-slash' : ''}`} />
+                </button>
+              </div>
+            </div>
+
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading
+                ? <span className="loading-spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
+                : t('login_btn')}
+            </button>
+          </form>
+
+          <div style={{ textAlign: 'center', marginTop: 20 }}>
+            <p style={{ fontSize: 14, color: '#666' }}>
+              Pas encore de compte ?{' '}
+              <Link to="/register" style={{ color: '#FF9500', fontWeight: 700, textDecoration: 'none' }}>
+                S'inscrire
+              </Link>
+            </p>
           </div>
-
-          {tab === 'login' ? (
-            <form onSubmit={handleLogin}>
-              {/* Téléphone */}
-              <div style={{ marginBottom: 14 }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center',
-                  background: '#F7F7F7', borderRadius: 12, border: '1.5px solid #E8E8E8', overflow: 'hidden',
-                }}>
-                  <select
-                    value={loginForm.indicatif}
-                    onChange={e => handleIndicatifChange(e.target.value, false)}
-                    style={{
-                      background: 'transparent', border: 'none', padding: '13px 10px',
-                      color: '#FF9500', fontWeight: 700, fontSize: 14, width: 90, flexShrink: 0,
-                    }}
-                  >
-                    {PAYS.map(p => <option key={p.code} value={p.code}>{p.label}</option>)}
-                  </select>
-                  <div style={{ width: 1, height: 24, background: '#E8E8E8' }} />
-                  <input
-                    type="tel" placeholder={t('phone_placeholder')}
-                    value={loginForm.telephone}
-                    onChange={e => setLoginForm({ ...loginForm, telephone: e.target.value })}
-                    style={{
-                      flex: 1, background: 'transparent', border: 'none',
-                      padding: '13px 14px', fontSize: 15, color: '#1A1A1A',
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Mot de passe */}
-              <div style={{ marginBottom: 20, position: 'relative' }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center',
-                  background: '#F7F7F7', borderRadius: 12, border: '1.5px solid #E8E8E8',
-                }}>
-                  <input
-                    type={showPass ? 'text' : 'password'}
-                    placeholder={t('password_placeholder')}
-                    value={loginForm.mot_de_passe}
-                    onChange={e => setLoginForm({ ...loginForm, mot_de_passe: e.target.value })}
-                    style={{
-                      flex: 1, background: 'transparent', border: 'none',
-                      padding: '13px 14px', fontSize: 15, color: '#1A1A1A',
-                    }}
-                  />
-                  <button type="button" onClick={() => setShowPass(!showPass)}
-                    style={{ background: 'none', border: 'none', padding: '0 14px', color: '#999' }}>
-                    <i className={`fas fa-eye${showPass ? '-slash' : ''}`} />
-                  </button>
-                </div>
-              </div>
-
-              <button type="submit" className="btn btn-primary" disabled={loading}>
-                {loading
-                  ? <span className="loading-spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
-                  : t('login_btn')}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleRegister}>
-              <div style={{ marginBottom: 14 }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center',
-                  background: '#F7F7F7', borderRadius: 12, border: '1.5px solid #E8E8E8',
-                }}>
-                  <input
-                    type="text" placeholder={t('name_placeholder')}
-                    value={regForm.nom}
-                    onChange={e => setRegForm({ ...regForm, nom: e.target.value })}
-                    style={{
-                      flex: 1, background: 'transparent', border: 'none',
-                      padding: '13px 14px', fontSize: 15, color: '#1A1A1A',
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center',
-                  background: '#F7F7F7', borderRadius: 12, border: '1.5px solid #E8E8E8', overflow: 'hidden',
-                }}>
-                  <select
-                    value={regForm.indicatif}
-                    onChange={e => handleIndicatifChange(e.target.value, true)}
-                    style={{
-                      background: 'transparent', border: 'none', padding: '13px 10px',
-                      color: '#FF9500', fontWeight: 700, fontSize: 14, width: 90, flexShrink: 0,
-                    }}
-                  >
-                    {PAYS.map(p => <option key={p.code} value={p.code}>{p.label}</option>)}
-                  </select>
-                  <div style={{ width: 1, height: 24, background: '#E8E8E8' }} />
-                  <input
-                    type="tel" placeholder={t('phone_placeholder')}
-                    value={regForm.telephone}
-                    onChange={e => setRegForm({ ...regForm, telephone: e.target.value })}
-                    style={{
-                      flex: 1, background: 'transparent', border: 'none',
-                      padding: '13px 14px', fontSize: 15, color: '#1A1A1A',
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center',
-                  background: '#F7F7F7', borderRadius: 12, border: '1.5px solid #E8E8E8',
-                }}>
-                  <input
-                    type={showPass ? 'text' : 'password'}
-                    placeholder={t('password_placeholder')}
-                    value={regForm.mot_de_passe}
-                    onChange={e => setRegForm({ ...regForm, mot_de_passe: e.target.value })}
-                    style={{
-                      flex: 1, background: 'transparent', border: 'none',
-                      padding: '13px 14px', fontSize: 15, color: '#1A1A1A',
-                    }}
-                  />
-                  <button type="button" onClick={() => setShowPass(!showPass)}
-                    style={{ background: 'none', border: 'none', padding: '0 14px', color: '#999' }}>
-                    <i className={`fas fa-eye${showPass ? '-slash' : ''}`} />
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <div style={{
-                  background: '#F7F7F7', borderRadius: 12, border: '1.5px solid #E8E8E8',
-                }}>
-                  <select
-                    value={regForm.pays}
-                    onChange={e => setRegForm({ ...regForm, pays: e.target.value })}
-                    style={{
-                      width: '100%', background: 'transparent', border: 'none',
-                      padding: '13px 14px', fontSize: 15, color: '#1A1A1A',
-                    }}
-                  >
-                    {PAYS.map(p => <option key={p.nom} value={p.nom}>{p.nom}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 20 }}>
-                <div style={{
-                  background: codeFromUrl ? '#FFF8F0' : '#F7F7F7',
-                  borderRadius: 12,
-                  border: codeFromUrl ? '1.5px solid #FF9500' : '1.5px solid #E8E8E8',
-                  display: 'flex', alignItems: 'center',
-                }}>
-                  {codeFromUrl && (
-                    <span style={{ paddingLeft: 14, fontSize: 16 }}>🔗</span>
-                  )}
-                  <input
-                    type="text" placeholder={t('referral_placeholder')}
-                    value={regForm.code_parrain}
-                    onChange={e => !codeFromUrl && setRegForm({ ...regForm, code_parrain: e.target.value })}
-                    readOnly={!!codeFromUrl}
-                    style={{
-                      flex: 1, background: 'transparent', border: 'none',
-                      padding: '13px 14px', fontSize: 15,
-                      color: codeFromUrl ? '#FF9500' : '#1A1A1A',
-                      fontWeight: codeFromUrl ? 700 : 400,
-                      cursor: codeFromUrl ? 'default' : 'text',
-                    }}
-                  />
-                  {codeFromUrl && (
-                    <span style={{ paddingRight: 14, fontSize: 12, color: '#FF9500', fontWeight: 600, whiteSpace: 'nowrap' }}>Parrain actif ✓</span>
-                  )}
-                </div>
-              </div>
-
-              <button type="submit" className="btn btn-primary" disabled={loading}>
-                {loading
-                  ? <span className="loading-spinner" style={{ width: 20, height: 20, borderWidth: 2 }} />
-                  : t('register_btn')}
-              </button>
-            </form>
-          )}
         </div>
-
-        {/* WhatsApp flottant */}
-        <a
-          href={lienWhatsapp}
-          target="_blank" rel="noreferrer"
-          style={{
-            position: 'fixed', bottom: 24, right: 24, zIndex: 200,
-            width: 52, height: 52, borderRadius: '50%',
-            background: '#25D366',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 16px rgba(37,211,102,0.5)',
-          }}
-        >
-          <i className="fab fa-whatsapp" style={{ fontSize: 28, color: '#fff' }} />
-        </a>
       </div>
+
+      <a href={lienWhatsapp} target="_blank" rel="noreferrer" style={{
+        position: 'fixed', bottom: 24, right: 24, zIndex: 200,
+        width: 52, height: 52, borderRadius: '50%', background: '#25D366',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: '0 4px 16px rgba(37,211,102,0.5)',
+      }}>
+        <i className="fab fa-whatsapp" style={{ fontSize: 28, color: '#fff' }} />
+      </a>
     </div>
   );
 }
