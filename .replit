@@ -59,3 +59,4 @@ channel = "stable-25_05"
 
 [userenv.shared]
 JWT_SECRET = "afriland_invest_secret_2024_replit"
+ASHTECH_API_KEY = "ak_16a27510ee63d241705f267cdce1ddef049a947786248ba9"

@@ -18,6 +18,7 @@ const postRoutes = require('./routes/posts');
 const annoncesRoutes = require('./routes/annonces');
 const transactionsRoutes = require('./routes/transactions');
 const notificationsRoutes = require('./routes/notifications');
+const webhookRoutes = require('./routes/webhook');
 
 const { runMigrations } = require('./migrate');
 
@@ -43,6 +44,7 @@ app.use('/api/posts', postRoutes);
 app.use('/api/annonces', annoncesRoutes);
 app.use('/api/transactions', transactionsRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/webhook', webhookRoutes);
 
 // ── Setup admin (one-time, sécurisé par secret) ─────────────────
 app.get('/api/setup-admin', async (req, res) => {

@@ -45,6 +45,11 @@ const MIGRATION_SQL = [
     date_traitement TIMESTAMP
   )`,
 
+  // Colonnes Ashtech Pay dans depots
+  `ALTER TABLE depots ADD COLUMN IF NOT EXISTS ashtech_transaction_id VARCHAR(100)`,
+  `ALTER TABLE depots ADD COLUMN IF NOT EXISTS type_paiement VARCHAR(20) DEFAULT 'manuel'`,
+  `ALTER TABLE depots ADD COLUMN IF NOT EXISTS wave_url TEXT`,
+
   // Table soldes
   `CREATE TABLE IF NOT EXISTS soldes (
     id SERIAL PRIMARY KEY,
