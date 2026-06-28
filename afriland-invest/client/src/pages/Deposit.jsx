@@ -285,22 +285,6 @@ export default function Deposit() {
                 />
 
 
-                <div style={{ marginBottom: 14 }}>
-                  <select
-                    value={form.pays}
-                    onChange={handlePaysChange}
-                    style={{
-                      width: '100%', background: '#F7F7F7', border: '1.5px solid #E8E8E8',
-                      borderRadius: 12, padding: '13px 14px', fontSize: 15, color: '#1A1A1A',
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    {Object.keys(operators).map(p => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
-                </div>
-
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
                   {currentOps.map((op) => (
                     <button key={op} onClick={() => setForm({ ...form, operateur: op })} style={{
