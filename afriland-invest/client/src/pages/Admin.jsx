@@ -201,6 +201,8 @@ export default function Admin() {
   const [salaires, setSalaires] = useState([]);
   const [newSalaire, setNewSalaire] = useState({ niveau: '', label: '', requis: '', cadeau: '' });
   const [transactions, setTransactions] = useState([]);
+  const [payingRevenu, setPayingRevenu] = useState(false);
+  const [dernierVersement, setDernierVersement] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -273,6 +275,21 @@ export default function Admin() {
       setSalaires(salairesRes.data.salaires || []);
     } catch { toast.error('Erreur de chargement'); }
     finally { setLoading(false); }
+  };
+
+  const handlePayerRevenus = async () => {
+    if (payingRevenu) return;
+    setPayingRevenu(true);
+    try {
+      const res = await api.post('/admin/payer-revenus');
+      toast.success(res.data.message);
+      setDernierVersement(new Date().toISOString());
+      loadAll();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Erreur lors du versement');
+    } finally {
+      setPayingRevenu(false);
+    }
   };
 
   const validateDepot = async (id) => { try { await api.put(`/admin/depots/${id}/validate`); toast.success('Dépôt validé ✅'); loadAll(); } catch (err) { toast.error(err.response?.data?.error || 'Erreur'); } };
@@ -926,6 +943,42 @@ export default function Admin() {
 
             {/* Graphique dépôts / retraits */}
             <TransactionChart depots={depots} retraits={retraits} fmt={fmt} />
+
+            {/* ── Versement journalier ── */}
+            <div style={{ background: '#fff', borderRadius: 20, padding: '20px 16px', boxShadow: 'var(--shadow-card)', marginTop: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: '#34C75915', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className="fas fa-coins" style={{ color: '#34C759', fontSize: 16 }} />
+                </div>
+                <div>
+                  <p style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-dark)' }}>Revenus journaliers</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {dernierVersement
+                      ? `Dernier versement : ${new Date(dernierVersement).toLocaleString('fr-FR')}`
+                      : 'Automatique chaque jour à 02h00 UTC'}
+                  </p>
+                </div>
+              </div>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.5 }}>
+                Crédite le revenu journalier sur le solde de chaque investisseur ayant un plan actif. Les plans arrivés à échéance sont automatiquement clôturés.
+              </p>
+              <button
+                onClick={handlePayerRevenus}
+                disabled={payingRevenu}
+                style={{
+                  width: '100%', padding: '14px', borderRadius: 14, border: 'none',
+                  background: payingRevenu ? '#ccc' : 'linear-gradient(135deg, #34C759, #30b050)',
+                  color: '#fff', fontWeight: 800, fontSize: 15, cursor: payingRevenu ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                  boxShadow: payingRevenu ? 'none' : '0 4px 15px rgba(52,199,89,0.35)',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {payingRevenu
+                  ? <><i className="fas fa-spinner fa-spin" /> Versement en cours…</>
+                  : <><i className="fas fa-paper-plane" /> Verser les revenus maintenant</>}
+              </button>
+            </div>
           </div>
         )}
 
