@@ -54,13 +54,16 @@ export default function Deposit() {
       setHistory(histRes.data.depots);
       setSolde(userRes.data.solde || 0);
       setMinDepot(parseFloat(settingsRes.data.min_depot || 500));
-      const userPays = userRes.data.pays;
-      const userTel = userRes.data.telephone || '';
+
+      const userData = userRes.data.user || userRes.data;
+      const userPays = userData.pays;
+      const userTel = userData.telephone || '';
 
       const INDICATIFS_PAYS = {
         '+237': 'Cameroun', '+225': "Côte d'Ivoire",
         '+229': 'Bénin', '+226': 'Burkina Faso', '+228': 'Togo',
       };
+
       let resolvedPays = (userPays && ops[userPays]) ? userPays : null;
       if (!resolvedPays) {
         for (const [code, nom] of Object.entries(INDICATIFS_PAYS)) {
@@ -295,6 +298,26 @@ export default function Deposit() {
                   }}
                 />
 
+                {form.pays && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    background: '#FFF8F0', border: '1.5px solid #FF9500',
+                    borderRadius: 12, padding: '10px 14px', marginBottom: 12,
+                  }}>
+                    <span style={{ fontSize: 18 }}>
+                      {form.pays === 'Cameroun' ? '🇨🇲' :
+                       form.pays === "Côte d'Ivoire" ? '🇨🇮' :
+                       form.pays === 'Togo' ? '🇹🇬' :
+                       form.pays === 'Bénin' ? '🇧🇯' :
+                       form.pays === 'Burkina Faso' ? '🇧🇫' : '🌍'}
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#FF9500' }}>{form.pays}</p>
+                      <p style={{ margin: 0, fontSize: 11, color: '#999' }}>Opérateurs disponibles dans votre pays</p>
+                    </div>
+                    <span style={{ fontSize: 14, color: '#FF9500' }}>🔒</span>
+                  </div>
+                )}
 
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
                   {currentOps.map((op) => (
