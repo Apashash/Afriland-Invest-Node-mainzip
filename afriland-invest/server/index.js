@@ -100,10 +100,12 @@ app.get('/api/settings/public', async (req, res) => {
     lien_whatsapp: '',
     lien_telegram: '',
     lien_whatsapp_groupe: '',
+    message_bienvenue: 'Bienvenue sur AFRILAND INVEST ! Rejoignez notre communauté pour ne rien manquer.',
+    popup_actif: '1',
   };
   try {
     const { rows } = await pool.query(
-      "SELECT cle, valeur FROM settings WHERE cle IN ('min_depot','min_retrait','retrait_max_par_jour','retrait_jours','retrait_heure_debut','retrait_heure_fin','retrait_off','lien_whatsapp','lien_telegram','lien_whatsapp_groupe')"
+      "SELECT cle, valeur FROM settings WHERE cle IN ('min_depot','min_retrait','retrait_max_par_jour','retrait_jours','retrait_heure_debut','retrait_heure_fin','retrait_off','lien_whatsapp','lien_telegram','lien_whatsapp_groupe','message_bienvenue','popup_actif')"
     );
     const map = { ...DEFAULTS };
     rows.forEach(r => { map[r.cle] = r.valeur; });

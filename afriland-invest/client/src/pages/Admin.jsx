@@ -1628,6 +1628,72 @@ export default function Admin() {
                 <i className="fas fa-save" style={{ marginRight: 8 }} />Enregistrer
               </button>
             </div>
+
+            {/* ── Message de bienvenue popup ── */}
+            <div style={{ background: '#fff', borderRadius: 16, padding: '18px 16px', marginBottom: 14, boxShadow: 'var(--shadow-card)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, background: '#FF950020', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <i className="fas fa-comment-dots" style={{ color: 'var(--primary)', fontSize: 14 }} />
+                </div>
+                <div>
+                  <p style={{ fontWeight: 700, fontSize: 14 }}>Message de bienvenue (popup)</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>Affiché aux utilisateurs à chaque connexion sur le tableau de bord</p>
+                </div>
+              </div>
+
+              {/* Activer/désactiver le popup */}
+              {(() => {
+                const actif = settings.popup_actif !== '0';
+                const toggle = async () => {
+                  const newVal = actif ? '0' : '1';
+                  try {
+                    await api.put('/admin/settings', { cle: 'popup_actif', valeur: newVal });
+                    setSettings(s => ({ ...s, popup_actif: newVal }));
+                    toast.success(newVal === '1' ? '✅ Popup activé' : '🔕 Popup désactivé');
+                  } catch { toast.error('Erreur'); }
+                };
+                return (
+                  <div onClick={toggle} style={{
+                    background: actif ? '#34C759' : '#8E8E93',
+                    borderRadius: 12, padding: '12px 14px', marginBottom: 14,
+                    cursor: 'pointer', transition: 'all .2s',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <i className={`fas ${actif ? 'fa-eye' : 'fa-eye-slash'}`} style={{ color: '#fff', fontSize: 16 }} />
+                      <span style={{ fontWeight: 700, fontSize: 13, color: '#fff' }}>
+                        {actif ? 'Popup activé' : 'Popup désactivé'}
+                      </span>
+                    </div>
+                    <div style={{ width: 46, height: 24, borderRadius: 50, background: 'rgba(255,255,255,0.3)', position: 'relative', flexShrink: 0 }}>
+                      <div style={{ position: 'absolute', top: 2, left: actif ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="input-group" style={{ marginBottom: 14 }}>
+                <label>Message de bienvenue</label>
+                <textarea
+                  rows={4}
+                  value={settings.message_bienvenue || ''}
+                  onChange={e => setSettings(s => ({ ...s, message_bienvenue: e.target.value }))}
+                  placeholder="Ex : Bienvenue ! Rejoignez notre canal Telegram pour suivre les actualités."
+                  style={{ width: '100%', borderRadius: 10, border: '1.5px solid #E8E8E8', padding: '10px 12px', fontSize: 14, resize: 'vertical', fontFamily: 'inherit' }}
+                />
+              </div>
+              <p style={{ fontSize: 11, color: '#999', marginBottom: 12 }}>
+                <i className="fab fa-whatsapp" style={{ color: '#25D366', marginRight: 4 }} />Les boutons WhatsApp et Telegram sont affichés automatiquement si leurs liens sont configurés ci-dessus.
+              </p>
+              <button onClick={async () => {
+                try {
+                  await api.put('/admin/settings', { cle: 'message_bienvenue', valeur: settings.message_bienvenue || '' });
+                  toast.success('Message de bienvenue sauvegardé ✅');
+                } catch { toast.error('Erreur'); }
+              }} className="btn btn-primary" style={{ padding: '12px', borderRadius: 50 }}>
+                <i className="fas fa-save" style={{ marginRight: 8 }} />Enregistrer le message
+              </button>
+            </div>
           </div>
         )}
 

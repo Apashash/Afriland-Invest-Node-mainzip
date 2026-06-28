@@ -425,6 +425,8 @@ const SETTINGS_DEFAULTS = {
   lien_whatsapp: '',
   lien_telegram: '',
   lien_whatsapp_groupe: '',
+  message_bienvenue: 'Bienvenue sur AFRILAND INVEST ! Rejoignez notre communauté pour ne rien manquer.',
+  popup_actif: '1',
 };
 
 router.get('/settings', adminMiddleware, async (req, res) => {

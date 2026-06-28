@@ -37,8 +37,9 @@ export default function Dashboard() {
   const [slideIdx, setSlideIdx] = useState(0);
   const [notifIdx, setNotifIdx] = useState(0);
   const [annonces, setAnnonces] = useState([]);
-  const [lienWhatsapp, setLienWhatsapp] = useState('https://wa.me/237600000000');
-  const [lienTelegram, setLienTelegram] = useState('https://t.me/gifetalpro');
+  const [lienWhatsapp, setLienWhatsapp] = useState('');
+  const [lienTelegram, setLienTelegram] = useState('');
+  const [messageBienvenue, setMessageBienvenue] = useState('');
   const [showPopup, setShowPopup] = useState(false);
   const [notifs, setNotifs] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -53,10 +54,7 @@ export default function Dashboard() {
     loadAnnonces();
     loadNotifications();
     const notifTimer = setInterval(() => setNotifIdx(i => (i + 1) % FAUX_NOTIFS.length), 3000);
-    // Popup Telegram : afficher 1.5s après le chargement, fermer après 7s
-    const showTimer = setTimeout(() => setShowPopup(true), 1500);
-    const hideTimer = setTimeout(() => setShowPopup(false), 8500);
-    return () => { clearInterval(notifTimer); clearTimeout(showTimer); clearTimeout(hideTimer); };
+    return () => { clearInterval(notifTimer); };
   }, []);
 
   useEffect(() => {
@@ -81,8 +79,18 @@ export default function Dashboard() {
         api.get('/settings/public'),
       ]);
       setAnnonces(annoncesRes.data.annonces || []);
-      if (settingsRes.data.lien_whatsapp) setLienWhatsapp(settingsRes.data.lien_whatsapp);
-      if (settingsRes.data.lien_telegram) setLienTelegram(settingsRes.data.lien_telegram);
+      const s = settingsRes.data;
+      if (s.lien_whatsapp) setLienWhatsapp(s.lien_whatsapp);
+      if (s.lien_telegram) setLienTelegram(s.lien_telegram);
+      if (s.message_bienvenue) setMessageBienvenue(s.message_bienvenue);
+      // Afficher le popup une fois par session si activé
+      if (s.popup_actif !== '0') {
+        const cleSeen = 'popup_bienvenue_seen';
+        if (!sessionStorage.getItem(cleSeen)) {
+          setTimeout(() => setShowPopup(true), 1200);
+          sessionStorage.setItem(cleSeen, '1');
+        }
+      }
     } catch {}
   };
 
@@ -120,7 +128,7 @@ export default function Dashboard() {
   return (
     <div className="container" style={{ background: '#F5F1E8', paddingBottom: 80 }}>
 
-      {/* ─── POPUP TELEGRAM ─── */}
+      {/* ─── POPUP BIENVENUE ─── */}
       {showPopup && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -134,34 +142,50 @@ export default function Dashboard() {
             boxShadow: '0 8px 40px rgba(0,0,0,0.25)',
             animation: 'fadeInUp 0.3s ease',
           }} onClick={e => e.stopPropagation()}>
-            {/* Icône */}
+            {/* Icône bienvenue */}
             <div style={{
               width: 64, height: 64, borderRadius: '50%',
-              background: 'linear-gradient(135deg, #229ED9, #0088cc)',
+              background: 'linear-gradient(135deg, #E07800, #FF9500)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               margin: '0 auto 16px',
-              boxShadow: '0 4px 16px rgba(34,158,217,0.4)',
+              boxShadow: '0 4px 16px rgba(255,149,0,0.4)',
             }}>
-              <i className="fab fa-telegram" style={{ fontSize: 30, color: '#fff' }} />
+              <i className="fas fa-hand-wave" style={{ fontSize: 28, color: '#fff' }} />
             </div>
             <p style={{ fontWeight: 800, fontSize: 17, color: '#1A1A1A', marginBottom: 8 }}>
-              Rejoignez notre canal Telegram
+              Bienvenue, {user?.nom?.split(' ')[0]} ! 👋
             </p>
-            <p style={{ fontSize: 13, color: '#666', lineHeight: 1.5, marginBottom: 20 }}>
-              Recevez les actualités, annonces et conseils d'investissement en temps réel.
+            <p style={{ fontSize: 13, color: '#555', lineHeight: 1.6, marginBottom: 20 }}>
+              {messageBienvenue || 'Bienvenue sur AFRILAND INVEST !'}
             </p>
-            <a href={lienTelegram} target="_blank" rel="noreferrer" style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              background: 'linear-gradient(135deg, #229ED9, #0088cc)',
-              color: '#fff', fontWeight: 700, fontSize: 15,
-              borderRadius: 50, padding: '13px 24px',
-              textDecoration: 'none',
-              boxShadow: '0 3px 12px rgba(34,158,217,0.4)',
-              marginBottom: 12,
-            }}>
-              <i className="fab fa-telegram" style={{ fontSize: 18 }} />
-              Rejoindre Telegram
-            </a>
+
+            {/* Boutons configurés */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+              {lienWhatsapp && (
+                <a href={lienWhatsapp} target="_blank" rel="noreferrer" style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  background: '#25D366', color: '#fff', fontWeight: 700, fontSize: 14,
+                  borderRadius: 50, padding: '12px 20px', textDecoration: 'none',
+                  boxShadow: '0 3px 12px rgba(37,211,102,0.35)',
+                }}>
+                  <i className="fab fa-whatsapp" style={{ fontSize: 18 }} />
+                  Rejoindre WhatsApp
+                </a>
+              )}
+              {lienTelegram && (
+                <a href={lienTelegram} target="_blank" rel="noreferrer" style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  background: 'linear-gradient(135deg, #229ED9, #0088cc)',
+                  color: '#fff', fontWeight: 700, fontSize: 14,
+                  borderRadius: 50, padding: '12px 20px', textDecoration: 'none',
+                  boxShadow: '0 3px 12px rgba(34,158,217,0.35)',
+                }}>
+                  <i className="fab fa-telegram" style={{ fontSize: 18 }} />
+                  Rejoindre Telegram
+                </a>
+              )}
+            </div>
+
             <button onClick={() => setShowPopup(false)} style={{
               background: 'none', border: 'none', color: '#999',
               fontSize: 13, cursor: 'pointer', padding: '4px 8px',
