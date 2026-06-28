@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
 import BottomNav from '../components/BottomNav';
+import { useLanguage, LangToggle } from '../contexts/LanguageContext.jsx';
 
 export default function MyOrders() {
+  const { t } = useLanguage();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -13,7 +15,7 @@ export default function MyOrders() {
 
   const loadData = async () => {
     try { const res = await api.get('/investment/my-orders'); setOrders(res.data.orders); }
-    catch { toast.error('Erreur de chargement'); }
+    catch { toast.error(t('loading_error')); }
     finally { setLoading(false); }
   };
 
@@ -22,9 +24,9 @@ export default function MyOrders() {
   const getStatus = (order) => {
     const now = new Date();
     const fin = new Date(order.date_fin);
-    if (order.statut === 'annule') return { label: 'Annulé', bg: '#FFE5E5', color: '#FF3B30' };
-    if (fin < now) return { label: 'Terminé', bg: '#E5E5FF', color: '#5856D6' };
-    return { label: 'Actif', bg: '#E5FFE9', color: '#34C759' };
+    if (order.statut === 'annule') return { label: t('annule'), bg: '#FFE5E5', color: '#FF3B30' };
+    if (fin < now) return { label: t('termine'), bg: '#E5E5FF', color: '#5856D6' };
+    return { label: t('actif'), bg: '#E5FFE9', color: '#34C759' };
   };
 
   const getDaysLeft = (dateFin) => {
@@ -40,15 +42,11 @@ export default function MyOrders() {
   return (
     <div className="container" style={{ background: '#F5F1E8', paddingBottom: 80 }}>
 
-      {/* En-tête orange */}
-      <div style={{
-        background: 'linear-gradient(135deg, #FF9500, #FFB347)',
-        padding: '50px 16px 30px',
-        position: 'relative',
-      }}>
-        <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 800 }}>Commandes</h1>
+      <div style={{ background: 'linear-gradient(135deg, #FF9500, #FFB347)', padding: '50px 16px 30px', position: 'relative' }}>
+        <LangToggle style={{ position: 'absolute', top: 14, right: 16 }} />
+        <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 800 }}>{t('orders')}</h1>
         <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 4 }}>
-          {activeCount} investissement(s) actif(s)
+          {activeCount} {t('active_investments')}
         </p>
       </div>
 
@@ -58,10 +56,10 @@ export default function MyOrders() {
         ) : orders.length === 0 ? (
           <div style={{ background: '#fff', borderRadius: 20, padding: '40px 20px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>📦</div>
-            <p style={{ fontWeight: 700, fontSize: 16, color: '#1A1A1A', marginBottom: 8 }}>Aucune commande</p>
-            <p style={{ color: '#999', fontSize: 14, marginBottom: 20 }}>Investissez dans un plan VIP pour commencer</p>
+            <p style={{ fontWeight: 700, fontSize: 16, color: '#1A1A1A', marginBottom: 8 }}>{t('no_orders')}</p>
+            <p style={{ color: '#999', fontSize: 14, marginBottom: 20 }}>{t('invest_to_start')}</p>
             <button className="btn btn-primary" onClick={() => navigate('/investment')} style={{ maxWidth: 200, margin: '0 auto' }}>
-              Voir les plans
+              {t('see_plans')}
             </button>
           </div>
         ) : (
@@ -69,53 +67,44 @@ export default function MyOrders() {
             const status = getStatus(order);
             const daysLeft = getDaysLeft(order.date_fin);
             const progress = Math.max(0, Math.min(100, ((order.duree_jours - daysLeft) / order.duree_jours) * 100));
-            const isActive = status.label === 'Actif';
+            const isActive = status.label === t('actif');
 
             return (
-              <div key={order.id} style={{
-                background: '#fff', borderRadius: 16, padding: '16px', marginBottom: 12,
-                boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
-              }}>
-                {/* En-tête carte */}
+              <div key={order.id} style={{ background: '#fff', borderRadius: 16, padding: '16px', marginBottom: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.07)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <div>
                     <p style={{ fontWeight: 700, fontSize: 15, color: '#1A1A1A' }}>{order.plan_nom}</p>
-                    <p style={{ color: '#999', fontSize: 12 }}>Série {order.serie}</p>
+                    <p style={{ color: '#999', fontSize: 12 }}>{t('series')} {order.serie}</p>
                   </div>
-                  <span style={{
-                    padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700,
-                    background: status.bg, color: status.color,
-                  }}>
+                  <span style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: status.bg, color: status.color }}>
                     {status.label}
                   </span>
                 </div>
 
-                {/* Stats */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
                   <div style={{ background: '#F7F7F7', borderRadius: 10, padding: '10px 12px' }}>
-                    <p style={{ fontSize: 11, color: '#999', marginBottom: 2 }}>Montant investi</p>
+                    <p style={{ fontSize: 11, color: '#999', marginBottom: 2 }}>{t('invested_amount')}</p>
                     <p style={{ fontWeight: 700, fontSize: 13, color: '#1A1A1A' }}>{fmt(order.montant)} FCFA</p>
                   </div>
                   <div style={{ background: '#FFF8F0', borderRadius: 10, padding: '10px 12px' }}>
-                    <p style={{ fontSize: 11, color: '#999', marginBottom: 2 }}>Gain / jour</p>
+                    <p style={{ fontSize: 11, color: '#999', marginBottom: 2 }}>{t('gain_day')}</p>
                     <p style={{ fontWeight: 700, fontSize: 13, color: '#FF9500' }}>+{fmt(order.revenu_journalier)} FCFA</p>
                   </div>
                   <div style={{ background: '#F7F7F7', borderRadius: 10, padding: '10px 12px' }}>
-                    <p style={{ fontSize: 11, color: '#999', marginBottom: 2 }}>Début</p>
+                    <p style={{ fontSize: 11, color: '#999', marginBottom: 2 }}>{t('start')}</p>
                     <p style={{ fontWeight: 600, fontSize: 12, color: '#1A1A1A' }}>{new Date(order.date_debut).toLocaleDateString('fr-FR')}</p>
                   </div>
                   <div style={{ background: '#F7F7F7', borderRadius: 10, padding: '10px 12px' }}>
-                    <p style={{ fontSize: 11, color: '#999', marginBottom: 2 }}>Fin</p>
+                    <p style={{ fontSize: 11, color: '#999', marginBottom: 2 }}>{t('end_date')}</p>
                     <p style={{ fontWeight: 600, fontSize: 12, color: '#1A1A1A' }}>{new Date(order.date_fin).toLocaleDateString('fr-FR')}</p>
                   </div>
                 </div>
 
-                {/* Barre de progression */}
                 {isActive && (
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <span style={{ fontSize: 12, color: '#999' }}>Progression</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#FF9500' }}>{daysLeft} jours restants</span>
+                      <span style={{ fontSize: 12, color: '#999' }}>{t('progress')}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#FF9500' }}>{daysLeft} {t('days_remaining')}</span>
                     </div>
                     <div style={{ height: 6, background: '#F0F0F0', borderRadius: 3, overflow: 'hidden' }}>
                       <div style={{

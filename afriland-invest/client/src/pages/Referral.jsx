@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
 import BottomNav from '../components/BottomNav';
+import { useLanguage, LangToggle } from '../contexts/LanguageContext.jsx';
 
 export default function Referral() {
+  const { t } = useLanguage();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [openLevel, setOpenLevel] = useState(1);
@@ -14,12 +16,12 @@ export default function Referral() {
 
   const loadData = async () => {
     try { const res = await api.get('/referral/data'); setData(res.data); }
-    catch { toast.error('Erreur de chargement'); }
+    catch { toast.error(t('loading_error')); }
     finally { setLoading(false); }
   };
 
-  const copy = (text) => {
-    navigator.clipboard.writeText(text).then(() => toast.success('Copié !'));
+  const copyText = (text) => {
+    navigator.clipboard.writeText(text).then(() => toast.success(t('copied')));
   };
 
   const fmt = (n) => new Intl.NumberFormat('fr-FR').format(Math.round(n || 0));
@@ -36,21 +38,16 @@ export default function Referral() {
   return (
     <div className="container" style={{ background: '#F5F1E8', paddingBottom: 80 }}>
 
-      {/* En-tête */}
-      <div style={{
-        background: 'linear-gradient(135deg, #FF9500, #FFB347)',
-        padding: '50px 16px 30px',
-        position: 'relative',
-      }}>
+      <div style={{ background: 'linear-gradient(135deg, #FF9500, #FFB347)', padding: '50px 16px 30px', position: 'relative' }}>
         <button onClick={() => navigate('/')} style={{
-          position: 'absolute', top: 14, left: 16,
-          width: 34, height: 34, borderRadius: 10,
-          background: 'rgba(255,255,255,0.25)', border: 'none',
-          color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          position: 'absolute', top: 14, left: 16, width: 34, height: 34, borderRadius: 10,
+          background: 'rgba(255,255,255,0.25)', border: 'none', color: '#fff', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <i className="fas fa-arrow-left" />
         </button>
-        <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 800 }}>Équipe</h1>
+        <LangToggle style={{ position: 'absolute', top: 14, right: 16 }} />
+        <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 800 }}>{t('team')}</h1>
       </div>
 
       {loading ? (
@@ -58,26 +55,18 @@ export default function Referral() {
       ) : (
         <div style={{ padding: '16px' }}>
 
-          {/* Lien invitation */}
           <div style={{ background: '#fff', borderRadius: 16, padding: '16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <p style={{ fontWeight: 700, fontSize: 15, color: '#1A1A1A', marginBottom: 12 }}>Lien d'invitation</p>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              background: '#F7F7F7', borderRadius: 12, padding: '10px 14px', marginBottom: 12,
-            }}>
-              <p style={{ flex: 1, fontSize: 12, color: '#666', wordBreak: 'break-all' }}>
-                {lien || '—'}
-              </p>
-              <button onClick={() => copy(lien)} style={{
-                padding: '8px 16px', borderRadius: 50,
-                background: '#FF9500', border: 'none',
+            <p style={{ fontWeight: 700, fontSize: 15, color: '#1A1A1A', marginBottom: 12 }}>{t('invitation_link')}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F7F7F7', borderRadius: 12, padding: '10px 14px', marginBottom: 12 }}>
+              <p style={{ flex: 1, fontSize: 12, color: '#666', wordBreak: 'break-all' }}>{lien || '—'}</p>
+              <button onClick={() => copyText(lien)} style={{
+                padding: '8px 16px', borderRadius: 50, background: '#FF9500', border: 'none',
                 color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', flexShrink: 0,
               }}>
-                Copier
+                {t('copy')}
               </button>
             </div>
 
-            {/* Partage réseaux sociaux */}
             <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
               {[
                 { icon: 'fa-whatsapp', color: '#25D366', label: 'WhatsApp', href: `https://wa.me/?text=${encodeURIComponent('Rejoignez PayFast: ' + lien)}` },
@@ -86,12 +75,7 @@ export default function Referral() {
                 { icon: 'fa-twitter', color: '#1DA1F2', label: 'Twitter', href: `https://twitter.com/intent/tweet?text=${encodeURIComponent('Rejoignez PayFast: ' + lien)}` },
               ].map(s => (
                 <a key={s.label} href={s.href} target="_blank" rel="noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textDecoration: 'none' }}>
-                  <div style={{
-                    width: 48, height: 48, borderRadius: '50%',
-                    background: s.color,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: `0 3px 10px ${s.color}44`,
-                  }}>
+                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 3px 10px ${s.color}44` }}>
                     <i className={`fab ${s.icon}`} style={{ fontSize: 22, color: '#fff' }} />
                   </div>
                   <span style={{ fontSize: 11, color: '#666' }}>{s.label}</span>
@@ -100,25 +84,23 @@ export default function Referral() {
             </div>
           </div>
 
-          {/* Stats */}
           <div style={{ background: '#fff', borderRadius: 16, padding: '16px', marginBottom: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <div style={{ display: 'flex', gap: 12 }}>
               <div style={{ flex: 1, textAlign: 'center' }}>
-                <p style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>Nombre de personnes</p>
+                <p style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>{t('total_people')}</p>
                 <p style={{ fontSize: 26, fontWeight: 800, color: '#FF9500' }}>{totalPersonnes}</p>
               </div>
               <div style={{ width: 1, background: '#E8E8E8' }} />
               <div style={{ flex: 1, textAlign: 'center' }}>
-                <p style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>Total commission</p>
+                <p style={{ fontSize: 12, color: '#999', marginBottom: 4 }}>{t('total_commission')}</p>
                 <p style={{ fontSize: 26, fontWeight: 800, color: '#FF9500' }}>{fmt(data?.gains_parrainage)}</p>
               </div>
             </div>
           </div>
 
-          {/* Tableau commissions */}
           <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', marginBottom: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', background: '#FF9500' }}>
-              {['Nv', 'Niveau 1', 'Niveau 2', 'Niveau 3'].map(h => (
+              {[t('level_short'), `${t('level')} 1`, `${t('level')} 2`, `${t('level')} 3`].map(h => (
                 <div key={h} style={{ padding: '12px 8px', textAlign: 'center', color: '#fff', fontWeight: 700, fontSize: 13 }}>{h}</div>
               ))}
             </div>
@@ -129,7 +111,6 @@ export default function Referral() {
             </div>
           </div>
 
-          {/* Niveaux filleuls */}
           {NIVEAUX.map(n => {
             const levelData = data?.[`niveau${n.num}`];
             const isOpen = openLevel === n.num;
@@ -140,23 +121,15 @@ export default function Referral() {
                   padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{
-                      width: 40, height: 40, borderRadius: 12,
-                      background: '#FFF8F0',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: '#FFF8F0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <i className="fas fa-users" style={{ color: '#FF9500', fontSize: 16 }} />
                     </div>
                     <div style={{ textAlign: 'left' }}>
-                      <p style={{ fontWeight: 700, fontSize: 14, color: '#1A1A1A' }}>Équipe niveau {n.num}</p>
-                      <p style={{ fontSize: 12, color: '#999' }}>{levelData?.count || 0} membre(s) • {n.commission}%</p>
+                      <p style={{ fontWeight: 700, fontSize: 14, color: '#1A1A1A' }}>{t('team_level')} {n.num}</p>
+                      <p style={{ fontSize: 12, color: '#999' }}>{levelData?.count || 0} {t('members')} • {n.commission}%</p>
                     </div>
                   </div>
-                  <div style={{
-                    width: 30, height: 30, borderRadius: 8, background: '#FFF8F0',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: '#FF9500', fontSize: 12,
-                  }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 8, background: '#FFF8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FF9500', fontSize: 12 }}>
                     <i className={`fas fa-chevron-${isOpen ? 'up' : 'down'}`} />
                   </div>
                 </button>
@@ -164,11 +137,7 @@ export default function Referral() {
                   <div style={{ borderTop: '1px solid #F0F0F0' }}>
                     {levelData?.filleuls?.length > 0 ? levelData.filleuls.map(f => (
                       <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid #F8F8F8' }}>
-                        <div style={{
-                          width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                          background: '#FF9500', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontWeight: 700, fontSize: 14, color: '#fff',
-                        }}>
+                        <div style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, background: '#FF9500', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, color: '#fff' }}>
                           {f.nom?.[0]?.toUpperCase()}
                         </div>
                         <div style={{ flex: 1 }}>
@@ -177,7 +146,7 @@ export default function Referral() {
                         </div>
                       </div>
                     )) : (
-                      <p style={{ textAlign: 'center', color: '#999', fontSize: 13, padding: '16px' }}>Aucun membre à ce niveau</p>
+                      <p style={{ textAlign: 'center', color: '#999', fontSize: 13, padding: '16px' }}>{t('no_member_level')}</p>
                     )}
                   </div>
                 )}
