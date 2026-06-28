@@ -20,6 +20,7 @@ router.get('/', authMiddleware, async (req, res) => {
       credit_admin: 'Crédit administrateur',
       cadeau_vip: 'Cadeau VIP débloqué',
       revenu: 'Revenu investissement versé',
+      revenu_journalier: 'Revenu journalier versé 💰',
     };
 
     const STATUT_LABELS = {
