@@ -5,16 +5,11 @@ import { useAuth } from '../hooks/useAuth.jsx';
 import { useLanguage, LangToggle } from '../contexts/LanguageContext.jsx';
 
 const PAYS = [
-  { code: '+237', label: '🇨🇲 +237' },
-  { code: '+225', label: '🇨🇮 +225' },
-  { code: '+221', label: '🇸🇳 +221' },
-  { code: '+223', label: '🇲🇱 +223' },
-  { code: '+229', label: '🇧🇯 +229' },
-  { code: '+226', label: '🇧🇫 +226' },
-  { code: '+228', label: '🇹🇬 +228' },
-  { code: '+243', label: '🇨🇩 +243' },
-  { code: '+242', label: '🇨🇬 +242' },
-  { code: '+241', label: '🇬🇦 +241' },
+  { code: '+237', label: '🇨🇲 +237', nom: 'Cameroun' },
+  { code: '+225', label: '🇨🇮 +225', nom: "Côte d'Ivoire" },
+  { code: '+229', label: '🇧🇯 +229', nom: 'Bénin' },
+  { code: '+226', label: '🇧🇫 +226', nom: 'Burkina Faso' },
+  { code: '+228', label: '🇹🇬 +228', nom: 'Togo' },
 ];
 
 export default function Login() {
@@ -24,6 +19,15 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [loginForm, setLoginForm] = useState({ indicatif: '+237', telephone: '', mot_de_passe: '' });
   const [regForm, setRegForm] = useState({ nom: '', indicatif: '+237', telephone: '', mot_de_passe: '', pays: 'Cameroun', code_parrain: '' });
+
+  const handleIndicatifChange = (val, isReg) => {
+    const found = PAYS.find(p => p.code === val);
+    if (isReg) {
+      setRegForm(f => ({ ...f, indicatif: val, pays: found?.nom || f.pays }));
+    } else {
+      setLoginForm(f => ({ ...f, indicatif: val }));
+    }
+  };
   const { login, register } = useAuth();
   const navigate = useNavigate();
   const { t } = useLanguage();
@@ -155,7 +159,7 @@ export default function Login() {
                 }}>
                   <select
                     value={loginForm.indicatif}
-                    onChange={e => setLoginForm({ ...loginForm, indicatif: e.target.value })}
+                    onChange={e => handleIndicatifChange(e.target.value, false)}
                     style={{
                       background: 'transparent', border: 'none', padding: '13px 10px',
                       color: '#FF9500', fontWeight: 700, fontSize: 14, width: 90, flexShrink: 0,
@@ -231,7 +235,7 @@ export default function Login() {
                 }}>
                   <select
                     value={regForm.indicatif}
-                    onChange={e => setRegForm({ ...regForm, indicatif: e.target.value })}
+                    onChange={e => handleIndicatifChange(e.target.value, true)}
                     style={{
                       background: 'transparent', border: 'none', padding: '13px 10px',
                       color: '#FF9500', fontWeight: 700, fontSize: 14, width: 90, flexShrink: 0,
@@ -286,16 +290,7 @@ export default function Login() {
                       padding: '13px 14px', fontSize: 15, color: '#1A1A1A',
                     }}
                   >
-                    <option>Cameroun</option>
-                    <option>Côte d'Ivoire</option>
-                    <option>Sénégal</option>
-                    <option>Mali</option>
-                    <option>Bénin</option>
-                    <option>Burkina Faso</option>
-                    <option>Togo</option>
-                    <option>Congo RDC</option>
-                    <option>Congo Brazzaville</option>
-                    <option>Gabon</option>
+                    {PAYS.map(p => <option key={p.nom} value={p.nom}>{p.nom}</option>)}
                   </select>
                 </div>
               </div>

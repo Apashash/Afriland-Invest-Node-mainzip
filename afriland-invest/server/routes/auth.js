@@ -7,12 +7,10 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'afriland_secret_2024';
 
 const PAYS_ELIGIBLES = {
+  '+237': 'Cameroun',
+  '+225': "Côte d'Ivoire",
   '+229': 'Bénin',
   '+226': 'Burkina Faso',
-  '+237': 'Cameroun',
-  '+221': 'Sénégal',
-  '+225': "Côte d'Ivoire",
-  '+223': 'Mali',
   '+228': 'Togo',
 };
 

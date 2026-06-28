@@ -106,12 +106,10 @@ var require_auth = __commonJS({
     var router = express2.Router();
     var JWT_SECRET = process.env.JWT_SECRET || "afriland_secret_2024";
     var PAYS_ELIGIBLES = {
+      "+237": "Cameroun",
+      "+225": "C\xF4te d'Ivoire",
       "+229": "B\xE9nin",
       "+226": "Burkina Faso",
-      "+237": "Cameroun",
-      "+221": "S\xE9n\xE9gal",
-      "+225": "C\xF4te d'Ivoire",
-      "+223": "Mali",
       "+228": "Togo"
     };
     router.post("/login", async (req, res) => {
