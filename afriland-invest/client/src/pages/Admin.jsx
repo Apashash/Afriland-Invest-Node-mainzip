@@ -330,6 +330,9 @@ export default function Admin() {
   const [txTypeFilter, setTxTypeFilter] = useState('all');
   const [txStatutFilter, setTxStatutFilter] = useState('all');
   const [userSearch, setUserSearch] = useState('');
+  const [depotSearch, setDepotSearch] = useState('');
+  const [retraitSearch, setRetraitSearch] = useState('');
+  const [txSearch, setTxSearch] = useState('');
 
   const [creditModal, setCreditModal] = useState(null);
   const [creditAmount, setCreditAmount] = useState('');
@@ -1230,62 +1233,112 @@ export default function Admin() {
         )}
 
         {/* ─── DÉPÔTS ─── */}
-        {tab === 'depots' && (
-          <div>
-            <SectionHeader icon="fa-arrow-down" title="Dépôts" badge={depots.filter(d => d.statut === 'en_attente').length} />
-            {paginated(depots, 'depots').map(d => (
-              <div key={d.id} style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', marginBottom: 10, boxShadow: 'var(--shadow-card)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <p style={{ fontWeight: 700, fontSize: 14 }}>{d.nom}</p>
-                    <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{d.telephone} · {d.pays}</p>
-                    <p style={{ color: 'var(--primary)', fontWeight: 800, fontSize: 17, marginTop: 4 }}>{fmt(d.montant)} FCFA</p>
-                    <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{d.operateur} · {new Date(d.date_depot).toLocaleDateString('fr-FR')}</p>
-                    {d.reference && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                        <span style={{ color: '#FF9500', fontSize: 11, fontWeight: 700, letterSpacing: 0.3, fontFamily: 'monospace' }}>{d.reference}</span>
-                        <button onClick={() => { navigator.clipboard.writeText(d.reference); toast.success('Référence copiée !'); }} style={{ background: '#FF950015', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', color: '#FF9500', fontSize: 10, fontWeight: 700 }}>Copier</button>
-                      </div>
-                    )}
-                  </div>
-                  <StatusBadge statut={d.statut} />
-                </div>
-                {d.statut === 'en_attente' && <ActionBtns onValidate={() => validateDepot(d.id)} onReject={() => rejectDepot(d.id)} />}
+        {tab === 'depots' && (() => {
+          const normPhone = (p) => (p || '').replace(/\D/g, '').replace(/^(00|\+)/, '');
+          const dSearch = depotSearch.trim().toLowerCase();
+          const filteredDepots = dSearch
+            ? depots.filter(d => {
+                const refMatch = (d.reference || '').toLowerCase().includes(dSearch);
+                const phoneMatch = normPhone(d.telephone).includes(normPhone(depotSearch.trim()));
+                const nameMatch = (d.nom || '').toLowerCase().includes(dSearch);
+                return refMatch || phoneMatch || nameMatch;
+              })
+            : depots;
+          return (
+            <div>
+              <SectionHeader icon="fa-arrow-down" title={`Dépôts${dSearch ? ` (${filteredDepots.length}/${depots.length})` : ` (${depots.length})`}`} badge={depots.filter(d => d.statut === 'en_attente').length} />
+              <div style={{ position: 'relative', marginBottom: 14 }}>
+                <i className="fas fa-search" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 14, pointerEvents: 'none' }} />
+                <input
+                  type="text"
+                  placeholder="Référence ou numéro de téléphone..."
+                  value={depotSearch}
+                  onChange={e => { setDepotSearch(e.target.value); setPage('depots', 1); }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '11px 14px 11px 40px', borderRadius: 12, border: '1.5px solid var(--border-color)', background: '#fff', fontSize: 14, color: 'var(--text-dark)', outline: 'none', boxShadow: 'var(--shadow-card)' }}
+                />
+                {depotSearch && (
+                  <button onClick={() => { setDepotSearch(''); setPage('depots', 1); }} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 16, padding: 4 }}>✕</button>
+                )}
               </div>
-            ))}
-            {depots.length === 0 && <div className="empty-state"><i className="fas fa-inbox" /><p>Aucun dépôt</p></div>}
-            <Pagination total={depots.length} page={pages.depots} setPage={v => setPage('depots', v)} />
-          </div>
-        )}
+              {paginated(filteredDepots, 'depots').map(d => (
+                <div key={d.id} style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', marginBottom: 10, boxShadow: 'var(--shadow-card)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <p style={{ fontWeight: 700, fontSize: 14 }}>{d.nom}</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{d.telephone} · {d.pays}</p>
+                      <p style={{ color: 'var(--primary)', fontWeight: 800, fontSize: 17, marginTop: 4 }}>{fmt(d.montant)} FCFA</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{d.operateur} · {new Date(d.date_depot).toLocaleDateString('fr-FR')}</p>
+                      {d.reference && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                          <span style={{ color: '#FF9500', fontSize: 11, fontWeight: 700, letterSpacing: 0.3, fontFamily: 'monospace' }}>{d.reference}</span>
+                          <button onClick={() => { navigator.clipboard.writeText(d.reference); toast.success('Référence copiée !'); }} style={{ background: '#FF950015', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', color: '#FF9500', fontSize: 10, fontWeight: 700 }}>Copier</button>
+                        </div>
+                      )}
+                    </div>
+                    <StatusBadge statut={d.statut} />
+                  </div>
+                  {d.statut === 'en_attente' && <ActionBtns onValidate={() => validateDepot(d.id)} onReject={() => rejectDepot(d.id)} />}
+                </div>
+              ))}
+              {filteredDepots.length === 0 && <div className="empty-state"><i className="fas fa-inbox" /><p>{dSearch ? `Aucun résultat pour "${depotSearch}"` : 'Aucun dépôt'}</p></div>}
+              <Pagination total={filteredDepots.length} page={pages.depots} setPage={v => setPage('depots', v)} />
+            </div>
+          );
+        })()}
 
         {/* ─── RETRAITS ─── */}
-        {tab === 'retraits' && (
-          <div>
-            <SectionHeader icon="fa-hand-holding-usd" title="Retraits" badge={retraits.filter(r => r.statut === 'en_attente').length} />
-            {paginated(retraits, 'retraits').map(r => (
-              <div key={r.id} style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', marginBottom: 10, boxShadow: 'var(--shadow-card)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <p style={{ fontWeight: 700, fontSize: 14 }}>{r.nom}</p>
-                    <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.telephone}</p>
-                    <p style={{ color: '#007AFF', fontWeight: 800, fontSize: 17, marginTop: 4 }}>{fmt(r.montant)} FCFA</p>
-                    <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{r.methode} · {r.numero_compte} · {new Date(r.date_demande).toLocaleDateString('fr-FR')}</p>
-                    {r.reference && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                        <span style={{ color: '#007AFF', fontSize: 11, fontWeight: 700, letterSpacing: 0.3, fontFamily: 'monospace' }}>{r.reference}</span>
-                        <button onClick={() => { navigator.clipboard.writeText(r.reference); toast.success('Référence copiée !'); }} style={{ background: '#007AFF15', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', color: '#007AFF', fontSize: 10, fontWeight: 700 }}>Copier</button>
-                      </div>
-                    )}
-                  </div>
-                  <StatusBadge statut={r.statut} />
-                </div>
-                {r.statut === 'en_attente' && <ActionBtns onValidate={() => validateRetrait(r.id)} onReject={() => rejectRetrait(r.id)} />}
+        {tab === 'retraits' && (() => {
+          const normPhone = (p) => (p || '').replace(/\D/g, '').replace(/^(00|\+)/, '');
+          const rSearch = retraitSearch.trim().toLowerCase();
+          const filteredRetraits = rSearch
+            ? retraits.filter(r => {
+                const refMatch = (r.reference || '').toLowerCase().includes(rSearch);
+                const phoneMatch = normPhone(r.telephone).includes(normPhone(retraitSearch.trim()));
+                const nameMatch = (r.nom || '').toLowerCase().includes(rSearch);
+                return refMatch || phoneMatch || nameMatch;
+              })
+            : retraits;
+          return (
+            <div>
+              <SectionHeader icon="fa-hand-holding-usd" title={`Retraits${rSearch ? ` (${filteredRetraits.length}/${retraits.length})` : ` (${retraits.length})`}`} badge={retraits.filter(r => r.statut === 'en_attente').length} />
+              <div style={{ position: 'relative', marginBottom: 14 }}>
+                <i className="fas fa-search" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 14, pointerEvents: 'none' }} />
+                <input
+                  type="text"
+                  placeholder="Référence ou numéro de téléphone..."
+                  value={retraitSearch}
+                  onChange={e => { setRetraitSearch(e.target.value); setPage('retraits', 1); }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '11px 14px 11px 40px', borderRadius: 12, border: '1.5px solid var(--border-color)', background: '#fff', fontSize: 14, color: 'var(--text-dark)', outline: 'none', boxShadow: 'var(--shadow-card)' }}
+                />
+                {retraitSearch && (
+                  <button onClick={() => { setRetraitSearch(''); setPage('retraits', 1); }} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 16, padding: 4 }}>✕</button>
+                )}
               </div>
-            ))}
-            {retraits.length === 0 && <div className="empty-state"><i className="fas fa-inbox" /><p>Aucun retrait</p></div>}
-            <Pagination total={retraits.length} page={pages.retraits} setPage={v => setPage('retraits', v)} />
-          </div>
-        )}
+              {paginated(filteredRetraits, 'retraits').map(r => (
+                <div key={r.id} style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', marginBottom: 10, boxShadow: 'var(--shadow-card)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <p style={{ fontWeight: 700, fontSize: 14 }}>{r.nom}</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.telephone}</p>
+                      <p style={{ color: '#007AFF', fontWeight: 800, fontSize: 17, marginTop: 4 }}>{fmt(r.montant)} FCFA</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{r.methode} · {r.numero_compte} · {new Date(r.date_demande).toLocaleDateString('fr-FR')}</p>
+                      {r.reference && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                          <span style={{ color: '#007AFF', fontSize: 11, fontWeight: 700, letterSpacing: 0.3, fontFamily: 'monospace' }}>{r.reference}</span>
+                          <button onClick={() => { navigator.clipboard.writeText(r.reference); toast.success('Référence copiée !'); }} style={{ background: '#007AFF15', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', color: '#007AFF', fontSize: 10, fontWeight: 700 }}>Copier</button>
+                        </div>
+                      )}
+                    </div>
+                    <StatusBadge statut={r.statut} />
+                  </div>
+                  {r.statut === 'en_attente' && <ActionBtns onValidate={() => validateRetrait(r.id)} onReject={() => rejectRetrait(r.id)} />}
+                </div>
+              ))}
+              {filteredRetraits.length === 0 && <div className="empty-state"><i className="fas fa-inbox" /><p>{rSearch ? `Aucun résultat pour "${retraitSearch}"` : 'Aucun retrait'}</p></div>}
+              <Pagination total={filteredRetraits.length} page={pages.retraits} setPage={v => setPage('retraits', v)} />
+            </div>
+          );
+        })()}
 
         {/* ─── CADEAUX VIP ─── */}
         {tab === 'cadeaux' && (
@@ -1321,13 +1374,36 @@ export default function Admin() {
 
         {/* ─── TRANSACTIONS ─── */}
         {tab === 'transactions' && (() => {
-          const filtered = transactions.filter(t =>
-            (txTypeFilter === 'all' || t.kind === txTypeFilter) &&
-            (txStatutFilter === 'all' || t.statut === txStatutFilter)
-          );
+          const normPhone = (p) => (p || '').replace(/\D/g, '').replace(/^(00|\+)/, '');
+          const tSearch = txSearch.trim().toLowerCase();
+          const filtered = transactions.filter(t => {
+            const typeOk = txTypeFilter === 'all' || t.kind === txTypeFilter;
+            const statutOk = txStatutFilter === 'all' || t.statut === txStatutFilter;
+            if (!typeOk || !statutOk) return false;
+            if (!tSearch) return true;
+            const refMatch = (t.reference || '').toLowerCase().includes(tSearch);
+            const phoneMatch = t.user ? normPhone(t.user.telephone).includes(normPhone(txSearch.trim())) : false;
+            const nameMatch = (t.user?.nom || '').toLowerCase().includes(tSearch);
+            return refMatch || phoneMatch || nameMatch;
+          });
           return (
             <div>
-              <SectionHeader icon="fa-receipt" title="Transactions" />
+              <SectionHeader icon="fa-receipt" title={`Transactions${tSearch ? ` (${filtered.length}/${transactions.length})` : ` (${transactions.length})`}`} />
+              {/* Search bar */}
+              <div style={{ position: 'relative', marginBottom: 10 }}>
+                <i className="fas fa-search" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 14, pointerEvents: 'none' }} />
+                <input
+                  type="text"
+                  placeholder="Référence, nom ou numéro de téléphone..."
+                  value={txSearch}
+                  onChange={e => { setTxSearch(e.target.value); setPage('transactions', 1); }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '11px 14px 11px 40px', borderRadius: 12, border: '1.5px solid var(--border-color)', background: '#fff', fontSize: 14, color: 'var(--text-dark)', outline: 'none', boxShadow: 'var(--shadow-card)' }}
+                />
+                {txSearch && (
+                  <button onClick={() => { setTxSearch(''); setPage('transactions', 1); }} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 16, padding: 4 }}>✕</button>
+                )}
+              </div>
+              {/* Type & statut filters */}
               <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                 <select value={txTypeFilter} onChange={e => { setTxTypeFilter(e.target.value); setPage('transactions', 1); }}
                   style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-color)', background: '#fff', color: 'var(--text-dark)', fontSize: 13 }}>
@@ -1355,6 +1431,7 @@ export default function Admin() {
                     <div style={{ flex: 1 }}>
                       <p style={{ fontWeight: 700, fontSize: 13 }}>{t.label}</p>
                       {t.user && <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{t.user.nom} · {t.user.telephone}</p>}
+                      {t.reference && <p style={{ color: 'var(--text-muted)', fontSize: 11, fontFamily: 'monospace', marginTop: 1 }}>{t.reference}</p>}
                       <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{new Date(t.date).toLocaleString('fr-FR')}</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
@@ -1364,7 +1441,7 @@ export default function Admin() {
                   </div>
                 </div>
               ))}
-              {filtered.length === 0 && <div className="empty-state"><i className="fas fa-receipt" /><p>Aucune transaction</p></div>}
+              {filtered.length === 0 && <div className="empty-state"><i className="fas fa-receipt" /><p>{tSearch ? `Aucun résultat pour "${txSearch}"` : 'Aucune transaction'}</p></div>}
               <Pagination total={filtered.length} page={pages.transactions} setPage={v => setPage('transactions', v)} />
             </div>
           );
