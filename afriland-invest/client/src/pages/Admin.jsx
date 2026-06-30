@@ -1321,7 +1321,18 @@ export default function Admin() {
                       <p style={{ fontWeight: 700, fontSize: 14 }}>{r.nom}</p>
                       <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{r.telephone}</p>
                       <p style={{ color: '#007AFF', fontWeight: 800, fontSize: 17, marginTop: 4 }}>{fmt(r.montant)} FCFA</p>
-                      <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{r.methode} · {r.numero_compte} · {new Date(r.date_demande).toLocaleDateString('fr-FR')}</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{r.methode} · {new Date(r.date_demande).toLocaleDateString('fr-FR')}</p>
+                      {r.numero_compte && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                          <span style={{ color: 'var(--text-dark)', fontSize: 13, fontWeight: 700, fontFamily: 'monospace' }}>{r.numero_compte}</span>
+                          <button
+                            onClick={() => { navigator.clipboard.writeText(r.numero_compte); toast.success('Numéro copié !'); }}
+                            style={{ flexShrink: 0, background: '#007AFF15', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', color: '#007AFF', fontSize: 10, fontWeight: 700 }}
+                          >
+                            <i className="fas fa-copy" style={{ marginRight: 3 }} />Copier
+                          </button>
+                        </div>
+                      )}
                       {r.reference && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
                           <span style={{ color: '#007AFF', fontSize: 11, fontWeight: 700, letterSpacing: 0.3, fontFamily: 'monospace' }}>{r.reference}</span>
