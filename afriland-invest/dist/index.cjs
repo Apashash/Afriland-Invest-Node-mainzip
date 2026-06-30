@@ -1405,7 +1405,11 @@ var require_admin = __commonJS({
     router.get("/users", adminMiddleware, async (req, res) => {
       try {
         const usersRes = await safeQ(
-          `SELECT u.*, COALESCE(s.solde, u.solde, 0) AS solde_actuel
+          `SELECT u.*, COALESCE(s.solde, u.solde, 0) AS solde_actuel,
+              CASE WHEN EXISTS (
+                SELECT 1 FROM commandes c
+                WHERE c.user_id = u.id AND c.statut = 'actif' AND c.date_fin >= CURRENT_DATE
+              ) THEN true ELSE false END AS has_active_plan
        FROM utilisateurs u LEFT JOIN soldes s ON s.user_id = u.id
        ORDER BY u.date_inscription DESC LIMIT 200`,
           [],
@@ -1416,7 +1420,8 @@ var require_admin = __commonJS({
           solde: u.solde_actuel ?? u.solde ?? 0,
           banni: u.banni ?? false,
           retrait_bloque: u.retrait_bloque ?? false,
-          retrait_bloque_vip: u.retrait_bloque_vip ?? 0
+          retrait_bloque_vip: u.retrait_bloque_vip ?? 0,
+          has_active_plan: u.has_active_plan ?? false
         }));
         res.json({ users });
       } catch (err) {
@@ -2430,6 +2435,14 @@ var require_migrate = __commonJS({
     "use strict";
     var { pool } = require_db();
     var MIGRATION_SQL = [
+      // Table utilisateurs (doit être créée en premier)
+      `CREATE TABLE IF NOT EXISTS utilisateurs (
+    id SERIAL PRIMARY KEY,
+    nom VARCHAR(100) NOT NULL,
+    telephone VARCHAR(20) NOT NULL UNIQUE,
+    mot_de_passe VARCHAR(255) NOT NULL,
+    date_inscription TIMESTAMP DEFAULT NOW()
+  )`,
       // Colonnes manquantes dans utilisateurs
       `ALTER TABLE utilisateurs ADD COLUMN IF NOT EXISTS solde DECIMAL(15,2) DEFAULT 0`,
       `ALTER TABLE utilisateurs ADD COLUMN IF NOT EXISTS revenus_totaux DECIMAL(15,2) DEFAULT 0`,
