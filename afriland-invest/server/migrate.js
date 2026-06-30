@@ -1,6 +1,15 @@
 const { pool } = require('./db');
 
 const MIGRATION_SQL = [
+  // Table utilisateurs (doit être créée en premier)
+  `CREATE TABLE IF NOT EXISTS utilisateurs (
+    id SERIAL PRIMARY KEY,
+    nom VARCHAR(100) NOT NULL,
+    telephone VARCHAR(20) NOT NULL UNIQUE,
+    mot_de_passe VARCHAR(255) NOT NULL,
+    date_inscription TIMESTAMP DEFAULT NOW()
+  )`,
+
   // Colonnes manquantes dans utilisateurs
   `ALTER TABLE utilisateurs ADD COLUMN IF NOT EXISTS solde DECIMAL(15,2) DEFAULT 0`,
   `ALTER TABLE utilisateurs ADD COLUMN IF NOT EXISTS revenus_totaux DECIMAL(15,2) DEFAULT 0`,
