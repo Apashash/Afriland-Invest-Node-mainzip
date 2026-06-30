@@ -329,6 +329,7 @@ export default function Admin() {
   const bellRef = useRef();
   const [txTypeFilter, setTxTypeFilter] = useState('all');
   const [txStatutFilter, setTxStatutFilter] = useState('all');
+  const [userSearch, setUserSearch] = useState('');
 
   const [creditModal, setCreditModal] = useState(null);
   const [creditAmount, setCreditAmount] = useState('');
@@ -1370,57 +1371,93 @@ export default function Admin() {
         })()}
 
         {/* ─── UTILISATEURS ─── */}
-        {tab === 'users' && (
-          <div>
-            <SectionHeader icon="fa-users" title={`Utilisateurs (${users.length})`} />
-            {paginated(users, 'users').map(u => (
-              <div key={u.id} style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', marginBottom: 10, boxShadow: 'var(--shadow-card)', border: u.banni ? '1.5px solid #FF3B3040' : u.retrait_bloque ? '1.5px solid #5856D640' : 'none', opacity: u.banni ? 0.8 : 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 13, background: u.banni ? '#FF3B30' : 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, position: 'relative' }}>
-                    <span style={{ color: '#fff', fontWeight: 800, fontSize: 18 }}>{(u.nom || '?')[0].toUpperCase()}</span>
-                    {u.banni && <div style={{ position: 'absolute', bottom: -3, right: -3, width: 16, height: 16, borderRadius: '50%', background: '#FF3B30', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="fas fa-ban" style={{ color: '#fff', fontSize: 7 }} /></div>}
-                    {!u.banni && u.retrait_bloque && <div style={{ position: 'absolute', bottom: -3, right: -3, width: 16, height: 16, borderRadius: '50%', background: '#5856D6', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="fas fa-lock" style={{ color: '#fff', fontSize: 7 }} /></div>}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                      <p style={{ fontWeight: 700, fontSize: 14 }}>{u.nom}</p>
-                      {u.role === 'admin' && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 8, background: '#007AFF20', color: '#007AFF', fontWeight: 700 }}>Admin</span>}
-                      {u.banni && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 8, background: '#FF3B3020', color: '#FF3B30', fontWeight: 700 }}>Banni</span>}
-                      {u.retrait_bloque && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 8, background: '#5856D620', color: '#5856D6', fontWeight: 700 }}>Retrait bloqué</span>}
-                    </div>
-                    <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 1 }}>{u.telephone} · {u.pays}</p>
-                    <p style={{ color: 'var(--primary)', fontWeight: 700, fontSize: 13, marginTop: 1 }}>{fmt(u.solde || 0)} FCFA</p>
-                    {(u.lien_parrainage || u.code_parrainage) && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
-                        <span style={{ color: '#5856D6', fontSize: 11, fontWeight: 600, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
-                          {u.code_parrainage}
-                        </span>
-                        <button
-                          onClick={() => {
-                            const ref = u.lien_parrainage || `${window.location.origin}/register?ref=${u.code_parrainage}`;
-                            navigator.clipboard.writeText(ref);
-                            toast.success('Lien de parrainage copié !');
-                          }}
-                          style={{ flexShrink: 0, background: '#5856D615', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', color: '#5856D6', fontSize: 10, fontWeight: 700 }}
-                        >
-                          <i className="fas fa-copy" style={{ marginRight: 3 }} />Copier
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => openActionMenu(u)}
-                    style={{ width: 38, height: 38, borderRadius: 10, border: 'none', background: 'var(--primary)', color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, letterSpacing: 1 }}
-                  >
-                    ⋮
-                  </button>
-                </div>
+        {tab === 'users' && (() => {
+          const normalizePhone = (phone) => (phone || '').replace(/\D/g, '').replace(/^(00|\+)/, '');
+          const searchTerm = userSearch.trim().toLowerCase();
+          const filteredUsers = searchTerm
+            ? users.filter(u => {
+                const nameMatch = (u.nom || '').toLowerCase().includes(searchTerm);
+                const rawPhone = normalizePhone(u.telephone);
+                const rawSearch = normalizePhone(userSearch.trim());
+                const phoneMatch = rawPhone.includes(rawSearch) || rawPhone.endsWith(rawSearch);
+                return nameMatch || phoneMatch;
+              })
+            : users;
+          return (
+            <div>
+              <SectionHeader icon="fa-users" title={`Utilisateurs (${filteredUsers.length}${searchTerm && filteredUsers.length !== users.length ? `/${users.length}` : ''})`} />
+
+              {/* Search bar */}
+              <div style={{ position: 'relative', marginBottom: 14 }}>
+                <i className="fas fa-search" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 14, pointerEvents: 'none' }} />
+                <input
+                  type="text"
+                  placeholder="Rechercher par nom ou numéro..."
+                  value={userSearch}
+                  onChange={e => { setUserSearch(e.target.value); setPage('users', 1); }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '11px 14px 11px 40px', borderRadius: 12, border: '1.5px solid var(--border-color)', background: '#fff', fontSize: 14, color: 'var(--text-dark)', outline: 'none', boxShadow: 'var(--shadow-card)' }}
+                />
+                {userSearch && (
+                  <button onClick={() => { setUserSearch(''); setPage('users', 1); }} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 16, padding: 4 }}>✕</button>
+                )}
               </div>
-            ))}
-            {users.length === 0 && <div className="empty-state"><i className="fas fa-users" /><p>Aucun utilisateur</p></div>}
-            <Pagination total={users.length} page={pages.users} setPage={v => setPage('users', v)} />
-          </div>
-        )}
+
+              {paginated(filteredUsers, 'users').map(u => (
+                <div key={u.id} style={{ background: '#fff', borderRadius: 16, padding: '14px 16px', marginBottom: 10, boxShadow: 'var(--shadow-card)', border: u.banni ? '1.5px solid #FF3B3040' : u.retrait_bloque ? '1.5px solid #5856D640' : 'none', opacity: u.banni ? 0.8 : 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 13, background: u.banni ? '#FF3B30' : 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, position: 'relative' }}>
+                      <span style={{ color: '#fff', fontWeight: 800, fontSize: 18 }}>{(u.nom || '?')[0].toUpperCase()}</span>
+                      {u.banni && <div style={{ position: 'absolute', bottom: -3, right: -3, width: 16, height: 16, borderRadius: '50%', background: '#FF3B30', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="fas fa-ban" style={{ color: '#fff', fontSize: 7 }} /></div>}
+                      {!u.banni && u.retrait_bloque && <div style={{ position: 'absolute', bottom: -3, right: -3, width: 16, height: 16, borderRadius: '50%', background: '#5856D6', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="fas fa-lock" style={{ color: '#fff', fontSize: 7 }} /></div>}
+                      {!u.banni && !u.retrait_bloque && u.has_active_plan && <div style={{ position: 'absolute', bottom: -3, right: -3, width: 16, height: 16, borderRadius: '50%', background: '#34C759', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="fas fa-chart-line" style={{ color: '#fff', fontSize: 6 }} /></div>}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                        <p style={{ fontWeight: 700, fontSize: 14 }}>{u.nom}</p>
+                        {u.role === 'admin' && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 8, background: '#007AFF20', color: '#007AFF', fontWeight: 700 }}>Admin</span>}
+                        {u.banni && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 8, background: '#FF3B3020', color: '#FF3B30', fontWeight: 700 }}>Banni</span>}
+                        {u.retrait_bloque && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 8, background: '#5856D620', color: '#5856D6', fontWeight: 700 }}>Retrait bloqué</span>}
+                        {u.has_active_plan && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 8, background: '#34C75920', color: '#34C759', fontWeight: 700 }}><i className="fas fa-chart-line" style={{ marginRight: 3, fontSize: 9 }} />Plan actif</span>}
+                      </div>
+                      <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 1 }}>{u.telephone} · {u.pays}</p>
+                      <p style={{ color: 'var(--primary)', fontWeight: 700, fontSize: 13, marginTop: 1 }}>{fmt(u.solde || 0)} FCFA</p>
+                      {(u.lien_parrainage || u.code_parrainage) && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+                          <span style={{ color: '#5856D6', fontSize: 11, fontWeight: 600, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 160 }}>
+                            {u.code_parrainage}
+                          </span>
+                          <button
+                            onClick={() => {
+                              const ref = u.lien_parrainage || `${window.location.origin}/register?ref=${u.code_parrainage}`;
+                              navigator.clipboard.writeText(ref);
+                              toast.success('Lien de parrainage copié !');
+                            }}
+                            style={{ flexShrink: 0, background: '#5856D615', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', color: '#5856D6', fontSize: 10, fontWeight: 700 }}
+                          >
+                            <i className="fas fa-copy" style={{ marginRight: 3 }} />Copier
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => openActionMenu(u)}
+                      style={{ width: 38, height: 38, borderRadius: 10, border: 'none', background: 'var(--primary)', color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, letterSpacing: 1 }}
+                    >
+                      ⋮
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {filteredUsers.length === 0 && (
+                <div className="empty-state">
+                  <i className="fas fa-search" />
+                  <p>{searchTerm ? `Aucun résultat pour "${userSearch}"` : 'Aucun utilisateur'}</p>
+                </div>
+              )}
+              <Pagination total={filteredUsers.length} page={pages.users} setPage={v => setPage('users', v)} />
+            </div>
+          );
+        })()}
 
         {/* ─── POSTS ─── */}
         {tab === 'posts' && (

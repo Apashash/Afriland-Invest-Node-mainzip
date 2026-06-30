@@ -69,7 +69,11 @@ router.get('/stats', adminMiddleware, async (req, res) => {
 router.get('/users', adminMiddleware, async (req, res) => {
   try {
     const usersRes = await safeQ(
-      `SELECT u.*, COALESCE(s.solde, u.solde, 0) AS solde_actuel
+      `SELECT u.*, COALESCE(s.solde, u.solde, 0) AS solde_actuel,
+              CASE WHEN EXISTS (
+                SELECT 1 FROM commandes c
+                WHERE c.user_id = u.id AND c.statut = 'actif' AND c.date_fin >= CURRENT_DATE
+              ) THEN true ELSE false END AS has_active_plan
        FROM utilisateurs u LEFT JOIN soldes s ON s.user_id = u.id
        ORDER BY u.date_inscription DESC LIMIT 200`,
       [], { rows: [] }
@@ -80,6 +84,7 @@ router.get('/users', adminMiddleware, async (req, res) => {
       banni: u.banni ?? false,
       retrait_bloque: u.retrait_bloque ?? false,
       retrait_bloque_vip: u.retrait_bloque_vip ?? 0,
+      has_active_plan: u.has_active_plan ?? false,
     }));
     res.json({ users });
   } catch (err) {
